@@ -39,6 +39,22 @@ export interface RealIpConfigData {
   realIpCustomCidrs?: string[];
 }
 
+// Custom location configuration
+export interface CustomLocationData {
+  path: string; // Location path (e.g., /api, /admin)
+  upstreamType: 'proxy_pass' | 'grpc_pass' | 'grpcs_pass'; // Type of upstream
+  upstreams: CreateUpstreamData[]; // Upstream servers for this location
+  config?: string; // Additional custom nginx config
+}
+
+// Advanced configuration data
+export interface AdvancedConfigData {
+  hstsEnabled?: boolean; // Enable HSTS header
+  http2Enabled?: boolean; // Enable HTTP/2
+  grpcEnabled?: boolean; // Enable gRPC support (default proxy_pass replacement)
+  customLocations?: CustomLocationData[]; // Custom location blocks
+}
+
 // Domain creation input
 export interface CreateDomainInput {
   name: string;
@@ -46,6 +62,7 @@ export interface CreateDomainInput {
   loadBalancer?: LoadBalancerConfigData;
   modsecEnabled?: boolean;
   realIpConfig?: RealIpConfigData;
+  advancedConfig?: AdvancedConfigData;
 }
 
 // Domain update input
@@ -56,6 +73,7 @@ export interface UpdateDomainInput {
   upstreams?: CreateUpstreamData[];
   loadBalancer?: LoadBalancerConfigData;
   realIpConfig?: RealIpConfigData;
+  advancedConfig?: AdvancedConfigData;
 }
 
 // Domain query filters
