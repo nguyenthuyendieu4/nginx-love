@@ -195,6 +195,7 @@ model Domain {
   sslCertificate SSLCertificate?
   modsecCRSRules ModSecCRSRule[]
   modsecRules    ModSecRule[]
+  accessLists    AccessListDomain[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -458,6 +459,73 @@ model AclRule {
   updatedAt DateTime @updatedAt
 
   @@map("acl_rules")
+}
+
+// Access Lists Management Models
+
+enum AccessListType {
+  ip_whitelist
+  http_basic_auth
+  combined // Both IP and Basic Auth
+}
+
+model AccessList {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?        @db.Text
+  type        AccessListType
+  enabled     Boolean        @default(true)
+
+  // IP Whitelist configuration
+  allowedIps String[] @default([]) // List of allowed IP addresses/CIDR
+
+  // HTTP Basic Auth configuration
+  authUsers AccessListAuthUser[]
+
+  // Relations to domains
+  domains AccessListDomain[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([enabled])
+  @@map("access_lists")
+}
+
+model AccessListAuthUser {
+  id           String     @id @default(cuid())
+  accessListId String
+  accessList   AccessList @relation(fields: [accessListId], references: [id], onDelete: Cascade)
+
+  username     String
+  passwordHash String // Plain text password - will be hashed by htpasswd tool with apr1/MD5 format
+  description  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accessListId, username])
+  @@index([accessListId])
+  @@map("access_list_auth_users")
+}
+
+model AccessListDomain {
+  id           String     @id @default(cuid())
+  accessListId String
+  accessList   AccessList @relation(fields: [accessListId], references: [id], onDelete: Cascade)
+  domainId     String
+  domain       Domain     @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accessListId, domainId])
+  @@index([accessListId])
+  @@index([domainId])
+  @@map("access_list_domains")
 }
 
 model PerformanceMetric {

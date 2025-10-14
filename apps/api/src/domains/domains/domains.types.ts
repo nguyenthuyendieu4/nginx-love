@@ -1,4 +1,4 @@
-import { Domain, Upstream, LoadBalancerConfig, SSLCertificate, ModSecRule } from '@prisma/client';
+import { Domain, Upstream, LoadBalancerConfig, SSLCertificate, ModSecRule, AccessListDomain, AccessList } from '@prisma/client';
 
 /**
  * Domain types and interfaces
@@ -10,6 +10,7 @@ export interface DomainWithRelations extends Domain {
   loadBalancer: LoadBalancerConfig | null;
   sslCertificate: SSLCertificate | null;
   modsecRules?: ModSecRule[];
+  accessLists?: (AccessListDomain & { accessList: AccessList })[];
 }
 
 // Upstream creation data

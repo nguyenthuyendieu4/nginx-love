@@ -227,6 +227,9 @@ ${realIpBlock}
 `;
     }
 
+    // Generate Access Lists block
+    const accessListsBlock = this.generateAccessListsBlock(domain);
+
     // HTTP server with full proxy configuration
     return `
 server {
@@ -234,6 +237,7 @@ server {
     server_name ${domain.name};
 
 ${realIpBlock}
+${accessListsBlock}
     # Include ACL rules (IP whitelist/blacklist)
     include /etc/nginx/conf.d/acl-rules.conf;
 
@@ -288,6 +292,9 @@ ${realIpBlock}
     
     // Generate custom locations if configured
     const customLocations = this.generateCustomLocations(domain);
+    
+    // Generate Access Lists block
+    const accessListsBlock = this.generateAccessListsBlock(domain);
 
     return `
 server {
@@ -295,6 +302,7 @@ server {
     server_name ${domain.name};
 
 ${realIpBlock}
+${accessListsBlock}
     # Include ACL rules (IP whitelist/blacklist)
     include /etc/nginx/conf.d/acl-rules.conf;
 
@@ -375,6 +383,30 @@ ${customLocations}
     lines.push('    real_ip_recursive on;');
     lines.push('');
 
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate Access Lists includes for a domain
+   */
+  private generateAccessListsBlock(domain: DomainWithRelations): string {
+    // Check if domain has access lists
+    if (!domain.accessLists || domain.accessLists.length === 0) {
+      return '';
+    }
+
+    const lines: string[] = [];
+    lines.push('    # Access Lists Configuration');
+
+    // Include each enabled access list
+    domain.accessLists
+      .filter(al => al.enabled && al.accessList.enabled)
+      .forEach(al => {
+        const configFile = `/etc/nginx/access-lists/${al.accessList.name}.conf`;
+        lines.push(`    include ${configFile};`);
+      });
+
+    lines.push('');
     return lines.join('\n');
   }
 

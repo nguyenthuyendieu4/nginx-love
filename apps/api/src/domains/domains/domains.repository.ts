@@ -104,6 +104,11 @@ export class DomainsRepository {
         loadBalancer: true,
         sslCertificate: true,
         modsecRules: true,
+        accessLists: {
+          include: {
+            accessList: true,
+          },
+        },
       },
     });
 
@@ -121,6 +126,11 @@ export class DomainsRepository {
         loadBalancer: true,
         sslCertificate: true,
         modsecRules: true,
+        accessLists: {
+          include: {
+            accessList: true,
+          },
+        },
       },
     });
 
