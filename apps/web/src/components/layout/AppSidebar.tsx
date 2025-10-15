@@ -21,7 +21,11 @@ import {
   Settings,
   LogOut,
   Network,
+  Puzzle,
+  Package,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { pluginQueryOptions } from '@/queries/plugin.query-options';
 import {
   Sidebar,
   SidebarContent,
@@ -35,7 +39,6 @@ import {
   SidebarHeader,
   useSidebar
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,6 +88,13 @@ const menuGroups = [
       { key: 'users', icon: Users, path: '/users' },
       { key: 'nodes', icon: Server, path: '/nodes' },
     ]
+  },
+  {
+    title: 'Plugins',
+    items: [
+      { key: 'plugins', icon: Puzzle, path: '/plugins' },
+      { key: 'marketplace', icon: Package, path: '/plugins/marketplace' },
+    ]
   }
 ];
 
@@ -95,6 +105,10 @@ export function AppSidebar() {
   const { theme, setTheme } = useTheme();
   const { user: currentUser, logout } = useAuth();
   const router = useRouter();
+  
+  // Fetch active plugins for third-party menu items
+  const { data: pluginsData } = useQuery(pluginQueryOptions.all());
+  const activePlugins = pluginsData?.plugins || [];
 
   const handleLogout = async () => {
     await logout();
@@ -147,6 +161,43 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
+        
+        {/* Third Party Plugins Section */}
+        {activePlugins.some(p => p.status === 'ACTIVE' && p.menuItems && p.menuItems.length > 0) && (
+          <SidebarGroup>
+            <SidebarGroupLabel>
+              {!isCollapsed && t('nav.groups.thirdparty', 'Third Party Plugins')}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {activePlugins
+                  .filter(p => p.status === 'ACTIVE' && p.menuItems && p.menuItems.length > 0)
+                  .flatMap(plugin => 
+                    plugin.menuItems!
+                      .filter(item => item.position === 'sidebar')
+                      .map(item => {
+                        const matchRoute = useMatchRoute();
+                        const isActive = matchRoute({ to: item.path, fuzzy: true });
+                        
+                        return (
+                          <SidebarMenuItem key={`${plugin.id}-${item.path}`}>
+                            <SidebarMenuButton asChild>
+                              <Link
+                                to={item.path}
+                                className={`hover:bg-accent ${isActive ? 'bg-primary/10 text-primary font-medium' : ''}`}
+                              >
+                                <Puzzle className="h-4 w-4" />
+                                {!isCollapsed && <span>{item.label}</span>}
+                              </Link>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        );
+                      })
+                  )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       
       <SidebarFooter>

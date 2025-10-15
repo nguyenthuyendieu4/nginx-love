@@ -54,6 +54,7 @@ model User {
   activities    ActivityLog[]
   refreshTokens RefreshToken[]
   sessions      UserSession[]
+  pluginLogs    PluginLog[]
 
   @@map("users")
 }
@@ -815,3 +816,177 @@ model NLBHealthCheck {
   @@index([upstreamHost, upstreamPort])
   @@map("nlb_health_checks")
 }
+
+// Plugin System Models
+
+enum PluginStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+  UPDATING
+  INSTALLING
+}
+
+enum PluginAction {
+  INSTALL
+  UNINSTALL
+  ACTIVATE
+  DEACTIVATE
+  UPDATE
+  ERROR
+  VALIDATE
+  DOWNLOAD
+}
+
+enum LogStatus {
+  SUCCESS
+  FAILED
+  WARNING
+  INFO
+}
+
+model Plugin {
+  id              String          @id @default(cuid())
+  name            String          @unique
+  displayName     String
+  description     String          @db.Text
+  version         String
+  author          String
+  authorEmail     String?
+  homepage        String?
+  repository      String?
+  
+  // Status
+  status          PluginStatus    @default(INACTIVE)
+  isSystem        Boolean         @default(false)
+  
+  // Metadata
+  minAppVersion   String
+  maxAppVersion   String?
+  dependencies    Json            @default("[]")
+  permissions     Json            @default("[]")
+  
+  // Files
+  manifestPath    String
+  mainEntry       String
+  assetsPath      String?
+  
+  // Marketplace
+  marketplaceId   String?         @unique
+  downloads       Int             @default(0)
+  rating          Float?
+  category        String?
+  tags            String[]        @default([])
+  
+  // Security
+  checksum        String
+  signature       String?
+  verified        Boolean         @default(false)
+  
+  // Timestamps
+  installedAt     DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  lastActivated   DateTime?
+  lastChecked     DateTime?
+  
+  // Relations
+  logs            PluginLog[]
+  routes          PluginRoute[]
+  menuItems       PluginMenuItem[]
+  
+  @@index([status])
+  @@index([marketplaceId])
+  @@index([name])
+  @@map("plugins")
+}
+
+model PluginRoute {
+  id              String          @id @default(cuid())
+  pluginId        String
+  plugin          Plugin          @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  
+  path            String
+  method          String          // GET, POST, PUT, DELETE, PATCH
+  handler         String          // Handler function name
+  middleware      Json            @default("[]")
+  permissions     Json            @default("[]")
+  description     String?
+  
+  enabled         Boolean         @default(true)
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  @@index([pluginId])
+  @@index([path])
+  @@unique([pluginId, path, method])
+  @@map("plugin_routes")
+}
+
+model PluginMenuItem {
+  id              String          @id @default(cuid())
+  pluginId        String
+  plugin          Plugin          @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  
+  label           String
+  icon            String?
+  path            String
+  position        String          @default("header") // header, sidebar, both
+  order           Int             @default(100)
+  permissions     Json            @default("[]")
+  
+  enabled         Boolean         @default(true)
+  
+  createdAt       DateTime        @default(now())
+  
+  @@index([pluginId])
+  @@index([position])
+  @@map("plugin_menu_items")
+}
+
+model PluginLog {
+  id              String          @id @default(cuid())
+  pluginId        String
+  plugin          Plugin          @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  
+  action          PluginAction
+  status          LogStatus
+  message         String          @db.Text
+  details         Json?
+  errorStack      String?         @db.Text
+  
+  userId          String?
+  user            User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  ipAddress       String?
+  userAgent       String?
+  
+  createdAt       DateTime        @default(now())
+  
+  @@index([pluginId])
+  @@index([action])
+  @@index([status])
+  @@index([createdAt])
+  @@map("plugin_logs")
+}
+
+model PluginConflict {
+  id              String          @id @default(cuid())
+  plugin1Id       String
+  plugin2Id       String
+  
+  conflictType    String          // route, permission, dependency, resource
+  description     String          @db.Text
+  severity        String          @default("warning") // warning, error, critical
+  resolved        Boolean         @default(false)
+  resolution      String?         @db.Text
+  
+  detectedAt      DateTime        @default(now())
+  resolvedAt      DateTime?
+  
+  @@index([plugin1Id])
+  @@index([plugin2Id])
+  @@index([resolved])
+  @@map("plugin_conflicts")
+}
+

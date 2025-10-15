@@ -18,6 +18,15 @@ const resources = {
       'nav.users': 'User Management',
       'nav.nodes': 'Slave Nodes',
       'nav.network': 'Network Manager',
+      'nav.plugins': 'Plugins',
+      'nav.marketplace': 'Marketplace',
+      'nav.groups.main': 'Main',
+      'nav.groups.domain management': 'Domain Management',
+      'nav.groups.security': 'Security',
+      'nav.groups.monitoring': 'Monitoring',
+      'nav.groups.system': 'System',
+      'nav.groups.plugins': 'Plugins',
+      'nav.groups.thirdparty': 'Third Party Plugins',
       
       // Login
       'login.title': 'Admin Portal',
@@ -77,6 +86,15 @@ const resources = {
       'nav.users': 'Quản lý người dùng',
       'nav.nodes': 'Nút phụ',
       'nav.network': 'Quản lý mạng',
+      'nav.plugins': 'Tiện ích mở rộng',
+      'nav.marketplace': 'Chợ ứng dụng',
+      'nav.groups.main': 'Chính',
+      'nav.groups.domain management': 'Quản lý tên miền',
+      'nav.groups.security': 'Bảo mật',
+      'nav.groups.monitoring': 'Giám sát',
+      'nav.groups.system': 'Hệ thống',
+      'nav.groups.plugins': 'Tiện ích',
+      'nav.groups.thirdparty': 'Tiện ích bên thứ ba',
       
       // Login
       'login.title': 'Cổng Quản Trị',

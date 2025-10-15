@@ -15,6 +15,7 @@ import { Route as CatchallRouteImport } from './routes/$catchall'
 import { Route as AuthIndexRouteImport } from './routes/_auth/index'
 import { Route as AuthUsersRouteImport } from './routes/_auth/users'
 import { Route as AuthSslRouteImport } from './routes/_auth/ssl'
+import { Route as AuthPluginsRouteImport } from './routes/_auth/plugins'
 import { Route as AuthPerformanceRouteImport } from './routes/_auth/performance'
 import { Route as AuthNodesRouteImport } from './routes/_auth/nodes'
 import { Route as AuthNetworkRouteImport } from './routes/_auth/network'
@@ -22,11 +23,15 @@ import { Route as AuthModsecurityRouteImport } from './routes/_auth/modsecurity'
 import { Route as AuthLogsRouteImport } from './routes/_auth/logs'
 import { Route as AuthDomainsRouteImport } from './routes/_auth/domains'
 import { Route as AuthDashboardRouteImport } from './routes/_auth/dashboard'
+import { Route as AuthCloudflareDnsRouteImport } from './routes/_auth/cloudflare-dns'
 import { Route as AuthBackupRouteImport } from './routes/_auth/backup'
 import { Route as AuthAlertsRouteImport } from './routes/_auth/alerts'
 import { Route as AuthAclRouteImport } from './routes/_auth/acl'
 import { Route as AuthAccountRouteImport } from './routes/_auth/account'
 import { Route as AuthAccessListsRouteImport } from './routes/_auth/access-lists'
+import { Route as AuthPluginsIndexRouteImport } from './routes/_auth/plugins/index'
+import { Route as AuthPluginsMarketplaceRouteImport } from './routes/_auth/plugins/marketplace'
+import { Route as AuthPluginsPluginIdRouteImport } from './routes/_auth/plugins/$pluginId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -55,6 +60,11 @@ const AuthUsersRoute = AuthUsersRouteImport.update({
 const AuthSslRoute = AuthSslRouteImport.update({
   id: '/ssl',
   path: '/ssl',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthPluginsRoute = AuthPluginsRouteImport.update({
+  id: '/plugins',
+  path: '/plugins',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthPerformanceRoute = AuthPerformanceRouteImport.update({
@@ -92,6 +102,11 @@ const AuthDashboardRoute = AuthDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthCloudflareDnsRoute = AuthCloudflareDnsRouteImport.update({
+  id: '/cloudflare-dns',
+  path: '/cloudflare-dns',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthBackupRoute = AuthBackupRouteImport.update({
   id: '/backup',
   path: '/backup',
@@ -117,6 +132,21 @@ const AuthAccessListsRoute = AuthAccessListsRouteImport.update({
   path: '/access-lists',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthPluginsIndexRoute = AuthPluginsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthPluginsRoute,
+} as any)
+const AuthPluginsMarketplaceRoute = AuthPluginsMarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => AuthPluginsRoute,
+} as any)
+const AuthPluginsPluginIdRoute = AuthPluginsPluginIdRouteImport.update({
+  id: '/$pluginId',
+  path: '/$pluginId',
+  getParentRoute: () => AuthPluginsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/$catchall': typeof CatchallRoute
@@ -126,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/acl': typeof AuthAclRoute
   '/alerts': typeof AuthAlertsRoute
   '/backup': typeof AuthBackupRoute
+  '/cloudflare-dns': typeof AuthCloudflareDnsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/domains': typeof AuthDomainsRoute
   '/logs': typeof AuthLogsRoute
@@ -133,9 +164,13 @@ export interface FileRoutesByFullPath {
   '/network': typeof AuthNetworkRoute
   '/nodes': typeof AuthNodesRoute
   '/performance': typeof AuthPerformanceRoute
+  '/plugins': typeof AuthPluginsRouteWithChildren
   '/ssl': typeof AuthSslRoute
   '/users': typeof AuthUsersRoute
   '/': typeof AuthIndexRoute
+  '/plugins/$pluginId': typeof AuthPluginsPluginIdRoute
+  '/plugins/marketplace': typeof AuthPluginsMarketplaceRoute
+  '/plugins/': typeof AuthPluginsIndexRoute
 }
 export interface FileRoutesByTo {
   '/$catchall': typeof CatchallRoute
@@ -145,6 +180,7 @@ export interface FileRoutesByTo {
   '/acl': typeof AuthAclRoute
   '/alerts': typeof AuthAlertsRoute
   '/backup': typeof AuthBackupRoute
+  '/cloudflare-dns': typeof AuthCloudflareDnsRoute
   '/dashboard': typeof AuthDashboardRoute
   '/domains': typeof AuthDomainsRoute
   '/logs': typeof AuthLogsRoute
@@ -155,6 +191,9 @@ export interface FileRoutesByTo {
   '/ssl': typeof AuthSslRoute
   '/users': typeof AuthUsersRoute
   '/': typeof AuthIndexRoute
+  '/plugins/$pluginId': typeof AuthPluginsPluginIdRoute
+  '/plugins/marketplace': typeof AuthPluginsMarketplaceRoute
+  '/plugins': typeof AuthPluginsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -166,6 +205,7 @@ export interface FileRoutesById {
   '/_auth/acl': typeof AuthAclRoute
   '/_auth/alerts': typeof AuthAlertsRoute
   '/_auth/backup': typeof AuthBackupRoute
+  '/_auth/cloudflare-dns': typeof AuthCloudflareDnsRoute
   '/_auth/dashboard': typeof AuthDashboardRoute
   '/_auth/domains': typeof AuthDomainsRoute
   '/_auth/logs': typeof AuthLogsRoute
@@ -173,9 +213,13 @@ export interface FileRoutesById {
   '/_auth/network': typeof AuthNetworkRoute
   '/_auth/nodes': typeof AuthNodesRoute
   '/_auth/performance': typeof AuthPerformanceRoute
+  '/_auth/plugins': typeof AuthPluginsRouteWithChildren
   '/_auth/ssl': typeof AuthSslRoute
   '/_auth/users': typeof AuthUsersRoute
   '/_auth/': typeof AuthIndexRoute
+  '/_auth/plugins/$pluginId': typeof AuthPluginsPluginIdRoute
+  '/_auth/plugins/marketplace': typeof AuthPluginsMarketplaceRoute
+  '/_auth/plugins/': typeof AuthPluginsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -187,6 +231,7 @@ export interface FileRouteTypes {
     | '/acl'
     | '/alerts'
     | '/backup'
+    | '/cloudflare-dns'
     | '/dashboard'
     | '/domains'
     | '/logs'
@@ -194,9 +239,13 @@ export interface FileRouteTypes {
     | '/network'
     | '/nodes'
     | '/performance'
+    | '/plugins'
     | '/ssl'
     | '/users'
     | '/'
+    | '/plugins/$pluginId'
+    | '/plugins/marketplace'
+    | '/plugins/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/$catchall'
@@ -206,6 +255,7 @@ export interface FileRouteTypes {
     | '/acl'
     | '/alerts'
     | '/backup'
+    | '/cloudflare-dns'
     | '/dashboard'
     | '/domains'
     | '/logs'
@@ -216,6 +266,9 @@ export interface FileRouteTypes {
     | '/ssl'
     | '/users'
     | '/'
+    | '/plugins/$pluginId'
+    | '/plugins/marketplace'
+    | '/plugins'
   id:
     | '__root__'
     | '/$catchall'
@@ -226,6 +279,7 @@ export interface FileRouteTypes {
     | '/_auth/acl'
     | '/_auth/alerts'
     | '/_auth/backup'
+    | '/_auth/cloudflare-dns'
     | '/_auth/dashboard'
     | '/_auth/domains'
     | '/_auth/logs'
@@ -233,9 +287,13 @@ export interface FileRouteTypes {
     | '/_auth/network'
     | '/_auth/nodes'
     | '/_auth/performance'
+    | '/_auth/plugins'
     | '/_auth/ssl'
     | '/_auth/users'
     | '/_auth/'
+    | '/_auth/plugins/$pluginId'
+    | '/_auth/plugins/marketplace'
+    | '/_auth/plugins/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -288,6 +346,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSslRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/plugins': {
+      id: '/_auth/plugins'
+      path: '/plugins'
+      fullPath: '/plugins'
+      preLoaderRoute: typeof AuthPluginsRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/performance': {
       id: '/_auth/performance'
       path: '/performance'
@@ -337,6 +402,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDashboardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/cloudflare-dns': {
+      id: '/_auth/cloudflare-dns'
+      path: '/cloudflare-dns'
+      fullPath: '/cloudflare-dns'
+      preLoaderRoute: typeof AuthCloudflareDnsRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/backup': {
       id: '/_auth/backup'
       path: '/backup'
@@ -372,8 +444,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAccessListsRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/plugins/': {
+      id: '/_auth/plugins/'
+      path: '/'
+      fullPath: '/plugins/'
+      preLoaderRoute: typeof AuthPluginsIndexRouteImport
+      parentRoute: typeof AuthPluginsRoute
+    }
+    '/_auth/plugins/marketplace': {
+      id: '/_auth/plugins/marketplace'
+      path: '/marketplace'
+      fullPath: '/plugins/marketplace'
+      preLoaderRoute: typeof AuthPluginsMarketplaceRouteImport
+      parentRoute: typeof AuthPluginsRoute
+    }
+    '/_auth/plugins/$pluginId': {
+      id: '/_auth/plugins/$pluginId'
+      path: '/$pluginId'
+      fullPath: '/plugins/$pluginId'
+      preLoaderRoute: typeof AuthPluginsPluginIdRouteImport
+      parentRoute: typeof AuthPluginsRoute
+    }
   }
 }
+
+interface AuthPluginsRouteChildren {
+  AuthPluginsPluginIdRoute: typeof AuthPluginsPluginIdRoute
+  AuthPluginsMarketplaceRoute: typeof AuthPluginsMarketplaceRoute
+  AuthPluginsIndexRoute: typeof AuthPluginsIndexRoute
+}
+
+const AuthPluginsRouteChildren: AuthPluginsRouteChildren = {
+  AuthPluginsPluginIdRoute: AuthPluginsPluginIdRoute,
+  AuthPluginsMarketplaceRoute: AuthPluginsMarketplaceRoute,
+  AuthPluginsIndexRoute: AuthPluginsIndexRoute,
+}
+
+const AuthPluginsRouteWithChildren = AuthPluginsRoute._addFileChildren(
+  AuthPluginsRouteChildren,
+)
 
 interface AuthRouteChildren {
   AuthAccessListsRoute: typeof AuthAccessListsRoute
@@ -381,6 +490,7 @@ interface AuthRouteChildren {
   AuthAclRoute: typeof AuthAclRoute
   AuthAlertsRoute: typeof AuthAlertsRoute
   AuthBackupRoute: typeof AuthBackupRoute
+  AuthCloudflareDnsRoute: typeof AuthCloudflareDnsRoute
   AuthDashboardRoute: typeof AuthDashboardRoute
   AuthDomainsRoute: typeof AuthDomainsRoute
   AuthLogsRoute: typeof AuthLogsRoute
@@ -388,6 +498,7 @@ interface AuthRouteChildren {
   AuthNetworkRoute: typeof AuthNetworkRoute
   AuthNodesRoute: typeof AuthNodesRoute
   AuthPerformanceRoute: typeof AuthPerformanceRoute
+  AuthPluginsRoute: typeof AuthPluginsRouteWithChildren
   AuthSslRoute: typeof AuthSslRoute
   AuthUsersRoute: typeof AuthUsersRoute
   AuthIndexRoute: typeof AuthIndexRoute
@@ -399,6 +510,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAclRoute: AuthAclRoute,
   AuthAlertsRoute: AuthAlertsRoute,
   AuthBackupRoute: AuthBackupRoute,
+  AuthCloudflareDnsRoute: AuthCloudflareDnsRoute,
   AuthDashboardRoute: AuthDashboardRoute,
   AuthDomainsRoute: AuthDomainsRoute,
   AuthLogsRoute: AuthLogsRoute,
@@ -406,6 +518,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthNetworkRoute: AuthNetworkRoute,
   AuthNodesRoute: AuthNodesRoute,
   AuthPerformanceRoute: AuthPerformanceRoute,
+  AuthPluginsRoute: AuthPluginsRouteWithChildren,
   AuthSslRoute: AuthSslRoute,
   AuthUsersRoute: AuthUsersRoute,
   AuthIndexRoute: AuthIndexRoute,

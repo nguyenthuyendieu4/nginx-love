@@ -1,0 +1,49 @@
+{
+  "id": "cloudflare-dns-manager",
+  "name": "Cloudflare DNS Manager",
+  "version": "1.0.0",
+  "description": "Manage Cloudflare DNS records for your domains. Add, edit, and delete DNS records directly from the admin panel.",
+  "author": "Nginx Love Team",
+  "authorEmail": "support@nginx-love.com",
+  "category": "integration",
+  "tags": ["cloudflare", "dns", "domain", "records", "management"],
+  "downloadUrl": "http://localhost:3000/plugins/cloudflare-dns-manager-1.0.0.zip",
+  "checksum": "91715fa73cc2cb15a89ed2f3e260c7f6dbf143afdcdaf5561644d25a21f096c0",
+  "size": 13312,
+  "createdAt": "2025-10-15T15:44:00Z",
+  "updatedAt": "2025-10-15T15:44:00Z",
+  "rating": 5,
+  "downloads": 0,
+  "screenshots": [],
+  "requiresConfig": true,
+  "configFields": [
+    {
+      "key": "email",
+      "label": "Cloudflare Email",
+      "type": "email",
+      "required": true,
+      "placeholder": "your-email@example.com"
+    },
+    {
+      "key": "apiKey",
+      "label": "Cloudflare API Key",
+      "type": "password",
+      "required": true,
+      "placeholder": "Your Global API Key",
+      "helpText": "Get your Global API Key from Cloudflare Dashboard → Profile → API Tokens"
+    }
+  ],
+  "requires": {
+    "minAppVersion": "1.0.0",
+    "maxAppVersion": "2.0.0",
+    "dependencies": []
+  },
+  "permissions": [
+    "cloudflare:read",
+    "cloudflare:write",
+    "cloudflare:settings"
+  ],
+  "routes": 7,
+  "menuItems": 1,
+  "hooks": 2
+}

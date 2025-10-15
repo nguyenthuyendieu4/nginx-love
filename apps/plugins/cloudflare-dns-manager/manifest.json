@@ -1,0 +1,101 @@
+{
+  "name": "cloudflare-dns-manager",
+  "displayName": "Cloudflare DNS Manager",
+  "version": "1.0.0",
+  "description": "Manage Cloudflare DNS records for your domains. Add, edit, and delete DNS records directly from the admin panel.",
+  "author": {
+    "name": "Nginx Love Team",
+    "email": "support@nginx-love.com"
+  },
+  "homepage": "https://nginx-love.com/plugins/cloudflare-dns",
+  "repository": "https://github.com/nginx-love/cloudflare-dns-manager",
+  "category": "integration",
+  "tags": ["cloudflare", "dns", "domain", "records", "management"],
+  "requires": {
+    "minAppVersion": "1.0.0",
+    "maxAppVersion": "2.0.0",
+    "dependencies": []
+  },
+  "capabilities": {
+    "routes": [
+      {
+        "path": "/api/plugins/cloudflare/zones",
+        "method": "GET",
+        "handler": "getZones",
+        "permissions": ["cloudflare:read"]
+      },
+      {
+        "path": "/api/plugins/cloudflare/zones/:zoneId/records",
+        "method": "GET",
+        "handler": "getDNSRecords",
+        "permissions": ["cloudflare:read"]
+      },
+      {
+        "path": "/api/plugins/cloudflare/zones/:zoneId/records",
+        "method": "POST",
+        "handler": "createDNSRecord",
+        "permissions": ["cloudflare:write"]
+      },
+      {
+        "path": "/api/plugins/cloudflare/zones/:zoneId/records/:recordId",
+        "method": "PUT",
+        "handler": "updateDNSRecord",
+        "permissions": ["cloudflare:write"]
+      },
+      {
+        "path": "/api/plugins/cloudflare/zones/:zoneId/records/:recordId",
+        "method": "DELETE",
+        "handler": "deleteDNSRecord",
+        "permissions": ["cloudflare:write"]
+      },
+      {
+        "path": "/api/plugins/cloudflare/settings",
+        "method": "GET",
+        "handler": "getSettings",
+        "permissions": ["cloudflare:settings"]
+      },
+      {
+        "path": "/api/plugins/cloudflare/settings",
+        "method": "POST",
+        "handler": "saveSettings",
+        "permissions": ["cloudflare:settings"]
+      }
+    ],
+    "menuItems": [
+      {
+        "type": "sidebar",
+        "label": "Cloudflare DNS",
+        "icon": "cloud",
+        "path": "/cloudflare-dns",
+        "order": 1
+      }
+    ],
+    "permissions": [
+      "cloudflare:read",
+      "cloudflare:write",
+      "cloudflare:settings"
+    ],
+    "hooks": [
+      {
+        "name": "plugin:activated",
+        "handler": "onActivate"
+      },
+      {
+        "name": "plugin:deactivated",
+        "handler": "onDeactivate"
+      }
+    ]
+  },
+  "security": {
+    "permissions": [
+      "network:request",
+      "database:read",
+      "database:write",
+      "config:read",
+      "config:write"
+    ],
+    "sandbox": true
+  },
+  "entry": "index.js",
+  "assets": "public"
+}

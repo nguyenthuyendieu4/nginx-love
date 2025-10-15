@@ -17,6 +17,8 @@ import backupRoutes from '../domains/backup/backup.routes';
 import slaveRoutes from '../domains/cluster/cluster.routes';
 import nodeSyncRoutes from '../domains/cluster/node-sync.routes';
 import nlbRoutes from '../domains/nlb/nlb.routes';
+import pluginRoutes from '../domains/plugins/plugin.routes';
+import marketplaceRoutes from '../domains/plugins/marketplace.routes';
 
 const router = Router();
 
@@ -48,5 +50,7 @@ router.use('/slave', slaveRoutes);
 router.use('/system-config', systemConfigRoutes);
 router.use('/node-sync', nodeSyncRoutes);
 router.use('/nlb', nlbRoutes);
+router.use('/plugins', pluginRoutes);
+router.use('/marketplace', marketplaceRoutes);
 
 export default router;
