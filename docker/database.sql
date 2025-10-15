@@ -29,7 +29,6 @@ CREATE TYPE public."AccessListType" AS ENUM (
 );
 
 
-ALTER TYPE public."AccessListType" OWNER TO nginx_love_user;
 
 --
 -- Name: AclAction; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -42,7 +41,6 @@ CREATE TYPE public."AclAction" AS ENUM (
 );
 
 
-ALTER TYPE public."AclAction" OWNER TO nginx_love_user;
 
 --
 -- Name: AclField; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -58,7 +56,6 @@ CREATE TYPE public."AclField" AS ENUM (
 );
 
 
-ALTER TYPE public."AclField" OWNER TO nginx_love_user;
 
 --
 -- Name: AclOperator; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -71,7 +68,6 @@ CREATE TYPE public."AclOperator" AS ENUM (
 );
 
 
-ALTER TYPE public."AclOperator" OWNER TO nginx_love_user;
 
 --
 -- Name: AclType; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -83,7 +79,6 @@ CREATE TYPE public."AclType" AS ENUM (
 );
 
 
-ALTER TYPE public."AclType" OWNER TO nginx_love_user;
 
 --
 -- Name: ActivityType; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -99,7 +94,6 @@ CREATE TYPE public."ActivityType" AS ENUM (
 );
 
 
-ALTER TYPE public."ActivityType" OWNER TO nginx_love_user;
 
 --
 -- Name: AlertSeverity; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -112,7 +106,6 @@ CREATE TYPE public."AlertSeverity" AS ENUM (
 );
 
 
-ALTER TYPE public."AlertSeverity" OWNER TO nginx_love_user;
 
 --
 -- Name: BackupStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -126,7 +119,6 @@ CREATE TYPE public."BackupStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."BackupStatus" OWNER TO nginx_love_user;
 
 --
 -- Name: DomainStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -139,7 +131,6 @@ CREATE TYPE public."DomainStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."DomainStatus" OWNER TO nginx_love_user;
 
 --
 -- Name: LoadBalancerAlgorithm; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -152,7 +143,6 @@ CREATE TYPE public."LoadBalancerAlgorithm" AS ENUM (
 );
 
 
-ALTER TYPE public."LoadBalancerAlgorithm" OWNER TO nginx_love_user;
 
 --
 -- Name: NLBAlgorithm; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -166,7 +156,6 @@ CREATE TYPE public."NLBAlgorithm" AS ENUM (
 );
 
 
-ALTER TYPE public."NLBAlgorithm" OWNER TO nginx_love_user;
 
 --
 -- Name: NLBProtocol; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -179,7 +168,6 @@ CREATE TYPE public."NLBProtocol" AS ENUM (
 );
 
 
-ALTER TYPE public."NLBProtocol" OWNER TO nginx_love_user;
 
 --
 -- Name: NLBStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -192,7 +180,6 @@ CREATE TYPE public."NLBStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."NLBStatus" OWNER TO nginx_love_user;
 
 --
 -- Name: NLBUpstreamStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -205,7 +192,6 @@ CREATE TYPE public."NLBUpstreamStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."NLBUpstreamStatus" OWNER TO nginx_love_user;
 
 --
 -- Name: NodeMode; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -217,7 +203,6 @@ CREATE TYPE public."NodeMode" AS ENUM (
 );
 
 
-ALTER TYPE public."NodeMode" OWNER TO nginx_love_user;
 
 --
 -- Name: NotificationChannelType; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -229,7 +214,6 @@ CREATE TYPE public."NotificationChannelType" AS ENUM (
 );
 
 
-ALTER TYPE public."NotificationChannelType" OWNER TO nginx_love_user;
 
 --
 -- Name: SSLStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -242,7 +226,6 @@ CREATE TYPE public."SSLStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."SSLStatus" OWNER TO nginx_love_user;
 
 --
 -- Name: SlaveNodeStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -256,7 +239,6 @@ CREATE TYPE public."SlaveNodeStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."SlaveNodeStatus" OWNER TO nginx_love_user;
 
 --
 -- Name: SyncLogStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -270,7 +252,6 @@ CREATE TYPE public."SyncLogStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."SyncLogStatus" OWNER TO nginx_love_user;
 
 --
 -- Name: SyncLogType; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -283,7 +264,6 @@ CREATE TYPE public."SyncLogType" AS ENUM (
 );
 
 
-ALTER TYPE public."SyncLogType" OWNER TO nginx_love_user;
 
 --
 -- Name: UpstreamStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -296,7 +276,6 @@ CREATE TYPE public."UpstreamStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."UpstreamStatus" OWNER TO nginx_love_user;
 
 --
 -- Name: UserRole; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -309,7 +288,6 @@ CREATE TYPE public."UserRole" AS ENUM (
 );
 
 
-ALTER TYPE public."UserRole" OWNER TO nginx_love_user;
 
 --
 -- Name: UserStatus; Type: TYPE; Schema: public; Owner: nginx_love_user
@@ -322,7 +300,6 @@ CREATE TYPE public."UserStatus" AS ENUM (
 );
 
 
-ALTER TYPE public."UserStatus" OWNER TO nginx_love_user;
 
 SET default_tablespace = '';
 
@@ -344,7 +321,6 @@ CREATE TABLE public._prisma_migrations (
 );
 
 
-ALTER TABLE public._prisma_migrations OWNER TO nginx_love_user;
 
 --
 -- Name: access_list_auth_users; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -361,7 +337,6 @@ CREATE TABLE public.access_list_auth_users (
 );
 
 
-ALTER TABLE public.access_list_auth_users OWNER TO nginx_love_user;
 
 --
 -- Name: access_list_domains; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -377,7 +352,6 @@ CREATE TABLE public.access_list_domains (
 );
 
 
-ALTER TABLE public.access_list_domains OWNER TO nginx_love_user;
 
 --
 -- Name: access_lists; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -395,7 +369,6 @@ CREATE TABLE public.access_lists (
 );
 
 
-ALTER TABLE public.access_lists OWNER TO nginx_love_user;
 
 --
 -- Name: acl_rules; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -415,7 +388,6 @@ CREATE TABLE public.acl_rules (
 );
 
 
-ALTER TABLE public.acl_rules OWNER TO nginx_love_user;
 
 --
 -- Name: activity_logs; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -434,7 +406,6 @@ CREATE TABLE public.activity_logs (
 );
 
 
-ALTER TABLE public.activity_logs OWNER TO nginx_love_user;
 
 --
 -- Name: alert_history; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -453,7 +424,6 @@ CREATE TABLE public.alert_history (
 );
 
 
-ALTER TABLE public.alert_history OWNER TO nginx_love_user;
 
 --
 -- Name: alert_rule_channels; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -467,7 +437,6 @@ CREATE TABLE public.alert_rule_channels (
 );
 
 
-ALTER TABLE public.alert_rule_channels OWNER TO nginx_love_user;
 
 --
 -- Name: alert_rules; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -486,7 +455,6 @@ CREATE TABLE public.alert_rules (
 );
 
 
-ALTER TABLE public.alert_rules OWNER TO nginx_love_user;
 
 --
 -- Name: backup_files; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -505,7 +473,6 @@ CREATE TABLE public.backup_files (
 );
 
 
-ALTER TABLE public.backup_files OWNER TO nginx_love_user;
 
 --
 -- Name: backup_schedules; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -524,7 +491,6 @@ CREATE TABLE public.backup_schedules (
 );
 
 
-ALTER TABLE public.backup_schedules OWNER TO nginx_love_user;
 
 --
 -- Name: config_versions; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -541,7 +507,6 @@ CREATE TABLE public.config_versions (
 );
 
 
-ALTER TABLE public.config_versions OWNER TO nginx_love_user;
 
 --
 -- Name: config_versions_version_seq; Type: SEQUENCE; Schema: public; Owner: nginx_love_user
@@ -556,7 +521,6 @@ CREATE SEQUENCE public.config_versions_version_seq
     CACHE 1;
 
 
-ALTER TABLE public.config_versions_version_seq OWNER TO nginx_love_user;
 
 --
 -- Name: config_versions_version_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: nginx_love_user
@@ -588,7 +552,6 @@ CREATE TABLE public.domains (
 );
 
 
-ALTER TABLE public.domains OWNER TO nginx_love_user;
 
 --
 -- Name: installation_status; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -607,7 +570,6 @@ CREATE TABLE public.installation_status (
 );
 
 
-ALTER TABLE public.installation_status OWNER TO nginx_love_user;
 
 --
 -- Name: load_balancer_configs; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -626,7 +588,6 @@ CREATE TABLE public.load_balancer_configs (
 );
 
 
-ALTER TABLE public.load_balancer_configs OWNER TO nginx_love_user;
 
 --
 -- Name: modsec_crs_rules; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -646,7 +607,6 @@ CREATE TABLE public.modsec_crs_rules (
 );
 
 
-ALTER TABLE public.modsec_crs_rules OWNER TO nginx_love_user;
 
 --
 -- Name: modsec_rules; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -665,7 +625,6 @@ CREATE TABLE public.modsec_rules (
 );
 
 
-ALTER TABLE public.modsec_rules OWNER TO nginx_love_user;
 
 --
 -- Name: network_load_balancers; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -695,7 +654,6 @@ CREATE TABLE public.network_load_balancers (
 );
 
 
-ALTER TABLE public.network_load_balancers OWNER TO nginx_love_user;
 
 --
 -- Name: nginx_configs; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -712,7 +670,6 @@ CREATE TABLE public.nginx_configs (
 );
 
 
-ALTER TABLE public.nginx_configs OWNER TO nginx_love_user;
 
 --
 -- Name: nlb_health_checks; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -730,7 +687,6 @@ CREATE TABLE public.nlb_health_checks (
 );
 
 
-ALTER TABLE public.nlb_health_checks OWNER TO nginx_love_user;
 
 --
 -- Name: nlb_upstreams; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -756,7 +712,6 @@ CREATE TABLE public.nlb_upstreams (
 );
 
 
-ALTER TABLE public.nlb_upstreams OWNER TO nginx_love_user;
 
 --
 -- Name: notification_channels; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -773,7 +728,6 @@ CREATE TABLE public.notification_channels (
 );
 
 
-ALTER TABLE public.notification_channels OWNER TO nginx_love_user;
 
 --
 -- Name: performance_metrics; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -791,7 +745,6 @@ CREATE TABLE public.performance_metrics (
 );
 
 
-ALTER TABLE public.performance_metrics OWNER TO nginx_love_user;
 
 --
 -- Name: refresh_tokens; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -807,7 +760,6 @@ CREATE TABLE public.refresh_tokens (
 );
 
 
-ALTER TABLE public.refresh_tokens OWNER TO nginx_love_user;
 
 --
 -- Name: slave_nodes; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -835,7 +787,6 @@ CREATE TABLE public.slave_nodes (
 );
 
 
-ALTER TABLE public.slave_nodes OWNER TO nginx_love_user;
 
 --
 -- Name: ssl_certificates; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -859,7 +810,6 @@ CREATE TABLE public.ssl_certificates (
 );
 
 
-ALTER TABLE public.ssl_certificates OWNER TO nginx_love_user;
 
 --
 -- Name: sync_logs; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -879,7 +829,6 @@ CREATE TABLE public.sync_logs (
 );
 
 
-ALTER TABLE public.sync_logs OWNER TO nginx_love_user;
 
 --
 -- Name: system_configs; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -903,7 +852,6 @@ CREATE TABLE public.system_configs (
 );
 
 
-ALTER TABLE public.system_configs OWNER TO nginx_love_user;
 
 --
 -- Name: two_factor_auth; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -921,7 +869,6 @@ CREATE TABLE public.two_factor_auth (
 );
 
 
-ALTER TABLE public.two_factor_auth OWNER TO nginx_love_user;
 
 --
 -- Name: upstreams; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -943,7 +890,6 @@ CREATE TABLE public.upstreams (
 );
 
 
-ALTER TABLE public.upstreams OWNER TO nginx_love_user;
 
 --
 -- Name: user_profiles; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -960,7 +906,6 @@ CREATE TABLE public.user_profiles (
 );
 
 
-ALTER TABLE public.user_profiles OWNER TO nginx_love_user;
 
 --
 -- Name: user_sessions; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -980,7 +925,6 @@ CREATE TABLE public.user_sessions (
 );
 
 
-ALTER TABLE public.user_sessions OWNER TO nginx_love_user;
 
 --
 -- Name: users; Type: TABLE; Schema: public; Owner: nginx_love_user
@@ -1005,7 +949,6 @@ CREATE TABLE public.users (
 );
 
 
-ALTER TABLE public.users OWNER TO nginx_love_user;
 
 --
 -- Name: config_versions version; Type: DEFAULT; Schema: public; Owner: nginx_love_user
