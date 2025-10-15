@@ -412,12 +412,18 @@ ${customLocations}
 
   /**
    * Generate proxy headers for passing client information to backend
+   * Includes WebSocket support headers by default
    */
   private generateProxyHeaders(domain: DomainWithRelations): string {
     return `proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;`;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket Support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_http_version 1.1;`;
   }
 
   /**
