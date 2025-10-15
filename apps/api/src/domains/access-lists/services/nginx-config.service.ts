@@ -92,6 +92,50 @@ export class NginxConfigService {
   }
 
   /**
+   * Validate username to prevent command injection
+   * Username should only contain safe characters
+   */
+  private validateUsername(username: string): string {
+    // Check for null bytes which can be used for command injection
+    if (username.includes('\0')) {
+      throw new Error('Username contains invalid null byte character');
+    }
+    
+    // Username should only contain alphanumeric, dash, underscore, dot, and @
+    const validUsernamePattern = /^[a-zA-Z0-9._@-]+$/;
+    if (!validUsernamePattern.test(username)) {
+      throw new Error('Username contains invalid characters. Only alphanumeric, dash, underscore, dot, and @ are allowed');
+    }
+    
+    // Length check
+    if (username.length === 0 || username.length > 255) {
+      throw new Error('Username must be between 1 and 255 characters');
+    }
+    
+    return username;
+  }
+
+  /**
+   * Escape password for safe use in shell command
+   * We need to escape single quotes and backslashes to prevent injection
+   */
+  private escapePassword(password: string): string {
+    // Check for null bytes
+    if (password.includes('\0')) {
+      throw new Error('Password contains invalid null byte character');
+    }
+    
+    // Length check
+    if (password.length === 0 || password.length > 255) {
+      throw new Error('Password must be between 1 and 255 characters');
+    }
+    
+    // Escape single quotes by replacing ' with '\''
+    // This allows the password to be safely wrapped in single quotes
+    return password.replace(/'/g, "'\\''");
+  }
+
+  /**
    * Generate htpasswd file for HTTP Basic Auth using htpasswd tool
    */
   private async generateHtpasswdFile(accessList: AccessListWithRelations): Promise<void> {
@@ -113,6 +157,10 @@ export class NginxConfigService {
     // Use htpasswd tool to generate entries with proper apr1/MD5 hash format
     for (const user of accessList.authUsers) {
       try {
+        // Validate username (strict) and escape password (allow all chars but escape properly)
+        const safeUsername = this.validateUsername(user.username);
+        const escapedPassword = this.escapePassword(user.passwordHash);
+        
         // -b: batch mode (password on command line)
         // -B: use bcrypt (if you want bcrypt, but apr1 is more compatible)
         // -m: use MD5 (default, most compatible with Nginx)
@@ -120,8 +168,10 @@ export class NginxConfigService {
         const isFirstUser = accessList.authUsers.indexOf(user) === 0;
         const createFlag = isFirstUser ? '-c' : '';
         
+        // Use single quotes for password to prevent variable expansion and command substitution
+        // Escaped password is safe to use in single quotes
         execSync(
-          `htpasswd -b -m ${createFlag} ${htpasswdFile} "${user.username}" "${user.passwordHash}"`,
+          `htpasswd -b -m ${createFlag} ${htpasswdFile} "${safeUsername}" '${escapedPassword}'`,
           { stdio: 'pipe' }
         );
       } catch (error: any) {
