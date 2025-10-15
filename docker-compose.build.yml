@@ -76,11 +76,11 @@ services:
       SMTP_USER: ${SMTP_USER:-user@example.com}
       SMTP_PASS: ${SMTP_PASS:-change-this-to-random-password}
     volumes:
-      - backup:/var/backup
-      - nginx_modules:/usr/lib/nginx
-      - nginx_conf:/etc/nginx
-      - nginx_logs:/var/log
-      - acme_challenge:/var/www/html/.well-known/acme-challenge
+      - ./backup:/var/backup
+      - ./nginx_modules:/usr/lib/nginx
+      - ./nginx_conf:/etc/nginx
+      - ./nginx_logs:/var/log
+      - ./acme_challenge:/var/www/html/.well-known/acme-challenge
       - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
     # networks:
     #   - nginx-love-network
@@ -122,17 +122,6 @@ services:
 volumes:
   postgres_data:
     driver: local
-  backup:
-    driver: local
-  nginx_conf:
-    driver: local
-  nginx_logs:
-    driver: local
-  acme_challenge:
-    driver: local
-  nginx_modules:
-    driver: local
-
 networks:
   nginx-love-network:
     driver: bridge
