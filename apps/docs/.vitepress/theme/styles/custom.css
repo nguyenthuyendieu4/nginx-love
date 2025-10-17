@@ -11,6 +11,14 @@ body {
 }
 
 /* Enhanced Typography */
+.VPDoc {
+    margin-top: 0 !important;
+}
+
+.VPDoc .container {
+    padding-top: 24px !important;
+}
+
 .VPDoc h1 {
     font-weight: 700;
     letter-spacing: -0.02em;
