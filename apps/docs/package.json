@@ -9,12 +9,14 @@
         "serve": "vitepress serve"
     },
     "dependencies": {
-        "vue": "^3.3.4"
+        "vue": "^3.3.4",
+        "@vueuse/core": "^10.7.0"
     },
     "devDependencies": {
         "terser": "^5.44.0",
         "typescript": "^5.2.2",
         "vitepress": "^2.0.0-alpha.12",
-        "vue-tsc": "^1.8.8"
+        "vue-tsc": "^1.8.8",
+        "sass": "^1.69.5"
     }
 }

@@ -1,0 +1,50 @@
+/**
+ * Page Layout Overrides for Landing Page
+ */
+
+/* Remove default padding for page layout */
+.Layout[data-is-home="false"] .VPContent {
+  padding: 0 !important;
+  max-width: none !important;
+}
+
+.Layout .VPContent.has-sidebar {
+  padding: 0 !important;
+}
+
+/* Full width content for landing page */
+.vp-doc.container {
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+/* Ensure components take full width */
+.vp-doc > div {
+  max-width: none !important;
+}
+
+/* Hide sidebar on landing page if present */
+body[data-page-layout="page"] .VPSidebar {
+  display: none;
+}
+
+/* Override any default VitePress spacing */
+.VPDoc .container {
+  max-width: none;
+  padding: 0;
+}
+
+.VPDoc .content {
+  max-width: none;
+  padding: 0;
+}
+
+/* Ensure smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Add spacing to avoid navbar overlap */
+.VPContent {
+  padding-top: var(--vp-nav-height) !important;
+}

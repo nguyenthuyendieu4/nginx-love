@@ -1,0 +1,297 @@
+/**
+ * ShadCN-inspired Design System CSS Variables
+ * Modern, accessible color system with support for light/dark themes
+ */
+
+:root {
+  /* Base Colors */
+  --vp-c-bg: 0 0% 100%;
+  --vp-c-bg-soft: 240 4.8% 95.9%;
+  --vp-c-bg-mute: 240 5.9% 90%;
+  --vp-c-bg-alt: 0 0% 100%;
+  
+  --vp-c-text-1: 240 10% 3.9%;
+  --vp-c-text-2: 240 5.9% 10%;
+  --vp-c-text-3: 240 4.8% 45.9%;
+  
+  --vp-c-border: 240 5.9% 90%;
+  --vp-c-divider: 240 5.9% 90%;
+  
+  /* Brand Colors - Vibrant gradient system */
+  --vp-c-brand-1: 239 84% 67%;
+  --vp-c-brand-2: 262 83% 68%;
+  --vp-c-brand-3: 291 84% 71%;
+  --vp-c-brand-soft: 239 84% 67% / 0.1;
+  
+  /* Semantic Colors */
+  --vp-c-success: 142 76% 36%;
+  --vp-c-warning: 38 92% 50%;
+  --vp-c-danger: 0 84% 60%;
+  --vp-c-info: 199 89% 48%;
+  
+  /* Component-specific */
+  --vp-button-brand-bg: linear-gradient(135deg, hsl(var(--vp-c-brand-1)) 0%, hsl(var(--vp-c-brand-2)) 100%);
+  --vp-button-brand-hover-bg: linear-gradient(135deg, hsl(var(--vp-c-brand-1)) 0%, hsl(var(--vp-c-brand-3)) 100%);
+  
+  /* Shadows */
+  --vp-shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --vp-shadow-2: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --vp-shadow-3: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --vp-shadow-4: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --vp-shadow-5: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  
+  /* Border Radius */
+  --vp-radius-sm: 0.375rem;
+  --vp-radius: 0.5rem;
+  --vp-radius-md: 0.75rem;
+  --vp-radius-lg: 1rem;
+  --vp-radius-xl: 1.5rem;
+  
+  /* Animation */
+  --vp-transition-duration: 150ms;
+  --vp-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark {
+  /* Dark theme overrides */
+  --vp-c-bg: 240 10% 3.9%;
+  --vp-c-bg-soft: 240 5.9% 10%;
+  --vp-c-bg-mute: 240 3.7% 15.9%;
+  --vp-c-bg-alt: 240 10% 3.9%;
+  
+  --vp-c-text-1: 0 0% 98%;
+  --vp-c-text-2: 240 5% 84.9%;
+  --vp-c-text-3: 240 5% 64.9%;
+  
+  --vp-c-border: 240 3.7% 15.9%;
+  --vp-c-divider: 240 3.7% 15.9%;
+  
+  /* Slightly adjusted brand colors for dark mode */
+  --vp-c-brand-soft: 239 84% 67% / 0.15;
+}
+
+/* Global resets and utilities */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Animation utilities */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-left {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-right {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Utility classes */
+.animate-fade-in {
+  animation: fade-in 0.3s var(--vp-transition-timing);
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s var(--vp-transition-timing);
+}
+
+.animate-fade-down {
+  animation: fade-down 0.5s var(--vp-transition-timing);
+}
+
+.animate-fade-left {
+  animation: fade-left 0.5s var(--vp-transition-timing);
+}
+
+.animate-fade-right {
+  animation: fade-right 0.5s var(--vp-transition-timing);
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s var(--vp-transition-timing);
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+/* Gradient utilities */
+.gradient-primary {
+  background: linear-gradient(135deg, 
+    hsl(var(--vp-c-brand-1)) 0%,
+    hsl(var(--vp-c-brand-2)) 100%
+  );
+}
+
+.gradient-text {
+  background: linear-gradient(120deg,
+    hsl(var(--vp-c-brand-1)) 0%,
+    hsl(var(--vp-c-brand-2)) 50%,
+    hsl(var(--vp-c-brand-3)) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass morphism effect */
+.glass {
+  background: hsl(var(--vp-c-bg) / 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid hsl(var(--vp-c-border));
+}
+
+/* Responsive visibility */
+@media (max-width: 640px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .hide-tablet {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Selection styling */
+::selection {
+  background: hsl(var(--vp-c-brand-1) / 0.2);
+  color: hsl(var(--vp-c-text-1));
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+  outline: 2px solid hsl(var(--vp-c-brand-1));
+  outline-offset: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
