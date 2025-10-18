@@ -72,7 +72,7 @@ const steps = [
   {
     title: 'Clone the Repository',
     description: 'Get the latest version of nginx-love from GitHub',
-    code: 'git clone https://github.com/nguyenthuyendieu4/nginx-love.git\ncd nginx-love',
+    code: 'git clone https://github.com/TinyActive/nginx-love.git\ncd nginx-love',
     lang: 'bash'
   },
   {
