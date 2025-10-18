@@ -85,9 +85,19 @@ export default defineConfig({
           items: [
             { text: 'Domain Management', link: '/guide/domains' },
             { text: 'SSL Management', link: '/guide/ssl' },
+            { text: 'Access Lists', link: '/guide/Access_Lists' },
+            { text: 'Access Control List', link: '/guide/Access_Control_List' },
             { text: 'ModSecurity', link: '/guide/modsecurity' },
             { text: 'Performance Monitoring', link: '/guide/performance' },
             { text: 'Log Analysis', link: '/guide/logs' }
+          ]
+        },
+        {
+          text: 'System Management',
+          collapsed: false,
+          items: [
+            { text: 'User Management', link: '/guide/User_Management' },
+            { text: 'Backup & Restore', link: '/guide/Backup' }
           ]
         }
       ],

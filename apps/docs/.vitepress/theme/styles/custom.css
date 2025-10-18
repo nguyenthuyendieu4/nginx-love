@@ -11,6 +11,14 @@ body {
 }
 
 /* Enhanced Typography */
+.VPDoc {
+    margin-top: 0 !important;
+}
+
+.VPDoc .container {
+    padding-top: 24px !important;
+}
+
 .VPDoc h1 {
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -128,6 +136,17 @@ div[class*='language-'] {
 /* Enhanced Navigation */
 .VPNav {
     border-bottom: 1px solid var(--vp-c-border);
+    background-color: var(--vp-c-bg) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.VPNav.has-sidebar {
+    background-color: var(--vp-c-bg) !important;
+}
+
+.VPNavBar {
+    background-color: var(--vp-c-bg) !important;
 }
 
 .VPNavBarTitle {
