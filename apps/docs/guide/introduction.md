@@ -491,7 +491,6 @@ docker-compose build && docker-compose up -d
 - **[Alerts](./Alerts.md)**: Notification configuration
 - **[Logs](./logs.md)**: Log analysis and troubleshooting
 - **[User Management](./users.md)**: Team and access control
-- **[API Reference](../api/)**: RESTful API documentation
 
 ## 🤝 Support & Community
 
