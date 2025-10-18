@@ -174,7 +174,7 @@ Proactive issue detection and notification:
 - Unusual traffic spike
 - Disk space low
 
-📖 [Learn More: Alerts Guide](./alerts.md)
+📖 [Learn More: Alerts Guide](./Alerts.md)
 
 ### 9. **Comprehensive Logging**
 Detailed logs for debugging and compliance:
@@ -206,7 +206,7 @@ Protect your configuration and enable disaster recovery:
 - Alert settings
 - User accounts
 
-📖 [Learn More: Backup & Restore Guide](./backup.md)
+📖 [Learn More: Backup & Restore Guide](./Backup.md)
 
 ### 11. **Multi-User Management**
 Team collaboration with security:
@@ -231,8 +231,6 @@ Centralized management of multiple Nginx servers:
 - **Centralized Monitoring**: View all slaves from master dashboard
 - **High Availability**: Slave failover capabilities
 - **Selective Sync**: Choose what to sync per slave
-
-📖 [Learn More: Cluster Management Guide](./cluster.md)
 
 ## 🎯 Who Is This For?
 
@@ -490,7 +488,7 @@ docker-compose build && docker-compose up -d
 - **[Access Lists](./Access_Lists.md)**: IP whitelist and HTTP Basic Auth
 - **[Network Load Balancer](./Network_Manager.md)**: Layer 4 TCP/UDP load balancing
 - **[Performance Monitoring](./performance.md)**: Metrics and monitoring
-- **[Alerts](./alerts.md)**: Notification configuration
+- **[Alerts](./Alerts.md)**: Notification configuration
 - **[Logs](./logs.md)**: Log analysis and troubleshooting
 - **[User Management](./users.md)**: Team and access control
 - **[API Reference](../api/)**: RESTful API documentation
