@@ -325,7 +325,6 @@ All error responses follow this format:
   "errors": [ /* validation errors if any */ ]
 }
 ```
-
 Common HTTP Status Codes:
 - `200` - Success
 - `201` - Created
