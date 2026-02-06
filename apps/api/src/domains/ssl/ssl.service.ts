@@ -704,87 +704,93 @@ export class SSLService {
   }
 
   /**
-   * Validate whether a certificate is a wildcard and which domains it covers
+   * Inspect a PEM cert and determine coverage for the provided host list.
+   * Returns a structured report of which hosts are covered and which are not.
    */
-  async validateWildcardCertificate(
-    certificate: string,
-    domainNames: string[]
+  async checkWildcardCoverage(
+    pemCert: string,
+    hostnames: string[]
   ): Promise<WildcardValidationResult> {
-    const errors: string[] = [];
-    const matchedDomains: string[] = [];
-    const unmatchedDomains: string[] = [];
-
     try {
-      const wildcardInfo = await acmeService.validateWildcardCertificate(certificate);
+      const inspection = await acmeService.inspectWildcardCoverage(pemCert);
 
-      if (!wildcardInfo.isWildcard) {
+      if (!inspection.hasWildcard) {
         return {
           isValid: false,
           isWildcard: false,
           wildcardDomain: null,
           matchedDomains: [],
-          unmatchedDomains: domainNames,
-          errors: ['Certificate is not a wildcard certificate'],
+          unmatchedDomains: hostnames,
+          errors: ['The provided certificate does not contain a wildcard entry'],
         };
       }
 
-      // Check each domain against the wildcard pattern
-      for (const domainName of domainNames) {
-        if (this.matchesWildcard(wildcardInfo.wildcardDomain!, domainName) ||
-            wildcardInfo.coveredDomains.some(cd => this.matchesWildcard(cd, domainName))) {
-          matchedDomains.push(domainName);
+      const covered: string[] = [];
+      const notCovered: string[] = [];
+      const issues: string[] = [];
+
+      // Test each hostname against the wildcard pattern and covered names
+      for (const hostname of hostnames) {
+        const isCoveredByPattern = inspection.wildcardPattern
+          ? this.hostnameMatchesGlob(inspection.wildcardPattern, hostname)
+          : false;
+        const isCoveredBySan = inspection.allCoveredNames.some(
+          coveredName => this.hostnameMatchesGlob(coveredName, hostname)
+        );
+
+        if (isCoveredByPattern || isCoveredBySan) {
+          covered.push(hostname);
         } else {
-          unmatchedDomains.push(domainName);
-          errors.push(`Domain "${domainName}" is not covered by wildcard "${wildcardInfo.wildcardDomain}"`);
+          notCovered.push(hostname);
+          issues.push(`"${hostname}" falls outside the wildcard scope "${inspection.wildcardPattern}"`);
         }
       }
 
-      // Check expiry
-      const certInfo = await acmeService.parseCertificate(certificate);
-      const now = new Date();
-      if (certInfo.validTo < now) {
-        errors.push(`Certificate has expired on ${certInfo.validTo.toISOString()}`);
+      // Also verify the certificate has not expired
+      const parsed = await acmeService.parseCertificate(pemCert);
+      if (parsed.validTo < new Date()) {
+        issues.push(`Certificate expired on ${parsed.validTo.toISOString()}`);
       }
 
       return {
-        isValid: unmatchedDomains.length === 0 && errors.length === 0,
+        isValid: notCovered.length === 0 && issues.length === 0,
         isWildcard: true,
-        wildcardDomain: wildcardInfo.wildcardDomain,
-        matchedDomains,
-        unmatchedDomains,
-        errors,
+        wildcardDomain: inspection.wildcardPattern,
+        matchedDomains: covered,
+        unmatchedDomains: notCovered,
+        errors: issues,
       };
-    } catch (error: any) {
+    } catch (err: any) {
       return {
         isValid: false,
         isWildcard: false,
         wildcardDomain: null,
         matchedDomains: [],
-        unmatchedDomains: domainNames,
-        errors: [`Failed to validate certificate: ${error.message}`],
+        unmatchedDomains: hostnames,
+        errors: [`Certificate inspection failed: ${err.message}`],
       };
     }
   }
 
   /**
-   * Check if a domain matches a wildcard pattern
+   * Determine whether a hostname falls under a glob-style certificate name.
+   * Handles exact matches and single-level wildcard patterns (e.g. *.foo.com).
    */
-  private matchesWildcard(pattern: string, domain: string): boolean {
-    const p = pattern.toLowerCase();
-    const d = domain.toLowerCase();
+  private hostnameMatchesGlob(certGlob: string, hostname: string): boolean {
+    const normalizedGlob = certGlob.toLowerCase();
+    const normalizedHost = hostname.toLowerCase();
 
-    // Exact match
-    if (p === d) return true;
+    if (normalizedGlob === normalizedHost) return true;
 
-    // Wildcard match: *.example.com matches sub.example.com
-    if (p.startsWith('*.')) {
-      const baseDomain = p.slice(2); // Remove '*.'
-      // sub.example.com should match *.example.com
-      if (d === baseDomain) return true;
-      if (d.endsWith(`.${baseDomain}`)) {
-        // Ensure only one level of subdomain (standard wildcard behavior)
-        const prefix = d.slice(0, d.length - baseDomain.length - 1);
-        return !prefix.includes('.');
+    // Standard wildcard: *.base.tld covers single-depth subdomains only
+    if (normalizedGlob.startsWith('*.')) {
+      const parentZone = normalizedGlob.substring(2);
+      // The bare parent (e.g., base.tld) is also commonly covered
+      if (normalizedHost === parentZone) return true;
+      // sub.base.tld — ensure only one subdomain level
+      if (normalizedHost.endsWith(`.${parentZone}`)) {
+        const subdomainPart = normalizedHost.slice(0, -(parentZone.length + 1));
+        return subdomainPart.indexOf('.') === -1; // no dots means single-level
       }
     }
 
@@ -792,423 +798,331 @@ export class SSLService {
   }
 
   /**
-   * Issue wildcard SSL certificate via ACME DNS-01 challenge
+   * Request a free wildcard cert via ACME using the DNS-01 challenge flow.
    */
-  async issueWildcardCertificate(
+  async requestWildcardViaAcme(
     dto: IssueWildcardSSLDto,
-    userId: string,
-    ip: string,
-    userAgent: string
+    actorId: string,
+    clientIp: string,
+    clientUa: string
   ): Promise<SSLCertificateWithDomain> {
     const { domainId, baseDomain, email, dnsProvider, dnsCredentials, autoRenew = true } = dto;
 
-    // Validate and sanitize email
-    const secureEmailAddress = this.secureEmail(email);
+    const sanitizedEmail = this.secureEmail(email);
 
-    // Validate DNS provider
-    if (!SSL_CONSTANTS.SUPPORTED_DNS_PROVIDERS.includes(dnsProvider)) {
-      throw new Error(`Unsupported DNS provider: ${dnsProvider}. Supported: ${SSL_CONSTANTS.SUPPORTED_DNS_PROVIDERS.join(', ')}`);
+    // Confirm the DNS plugin is recognized
+    const recognizedPlugins = SSL_CONSTANTS.SUPPORTED_DNS_PROVIDERS;
+    if (!recognizedPlugins.includes(dnsProvider)) {
+      throw new Error(
+        `DNS plugin "${dnsProvider}" is not recognized. Choose from: ${recognizedPlugins.join(', ')}`
+      );
     }
 
-    // Check if domain exists
-    const domain = await prisma.domain.findUnique({
-      where: { id: domainId },
-    });
+    // Fetch the target domain record
+    const targetDomain = await prisma.domain.findUnique({ where: { id: domainId } });
+    if (!targetDomain) throw new Error('Domain not found');
 
-    if (!domain) {
-      throw new Error('Domain not found');
-    }
+    // Prevent duplicate certs
+    const priorCert = await sslRepository.findByDomainId(domainId);
+    if (priorCert) throw new Error('SSL certificate already exists for this domain');
 
-    // Check if certificate already exists for this domain
-    const existingCert = await sslRepository.findByDomainId(domainId);
-    if (existingCert) {
-      throw new Error('SSL certificate already exists for this domain');
-    }
-
-    const wildcardDomain = `*.${baseDomain}`;
-    logger.info(`Issuing wildcard SSL certificate ${wildcardDomain} for ${domain.name}`);
+    const starPattern = `*.${baseDomain}`;
+    logger.info(`[WildcardSSL] Requesting ${starPattern} for domain ${targetDomain.name}`);
 
     try {
-      // Issue wildcard certificate using DNS-01 challenge
-      const certFiles = await acmeService.issueWildcardCertificate({
-        baseDomain,
-        email: secureEmailAddress,
-        dnsProvider,
-        dnsCredentials,
+      const certBundle = await acmeService.obtainWildcardCert({
+        rootDomain: baseDomain,
+        contactEmail: sanitizedEmail,
+        dnsPlugin: dnsProvider,
+        dnsApiTokens: dnsCredentials,
       });
 
-      // Parse certificate to get details
-      const certInfo = await acmeService.parseCertificate(certFiles.certificate);
+      const parsedInfo = await acmeService.parseCertificate(certBundle.certificate);
 
-      // Validate it's actually a wildcard
-      const wildcardInfo = await acmeService.validateWildcardCertificate(certFiles.certificate);
-      if (!wildcardInfo.isWildcard) {
-        logger.warn('Issued certificate is not a wildcard certificate');
+      // Confirm it actually is wildcard-capable
+      const coverage = await acmeService.inspectWildcardCoverage(certBundle.certificate);
+      if (!coverage.hasWildcard) {
+        logger.warn('[WildcardSSL] Issued cert lacks a wildcard SAN — proceeding anyway');
       }
 
-      logger.info(`Wildcard SSL certificate issued: ${wildcardDomain}`);
-
-      // Create SSL certificate in database
-      const createData: any = {
+      // Assemble the database record
+      const record: Record<string, any> = {
         domain: { connect: { id: domainId } },
-        commonName: certInfo.commonName,
-        sans: certInfo.sans,
-        issuer: certInfo.issuer,
-        certificate: certFiles.certificate,
-        privateKey: certFiles.privateKey,
-        chain: certFiles.chain,
-        validFrom: certInfo.validFrom,
-        validTo: certInfo.validTo,
+        commonName: parsedInfo.commonName,
+        sans: parsedInfo.sans,
+        issuer: parsedInfo.issuer,
+        certificate: certBundle.certificate,
+        privateKey: certBundle.privateKey,
+        chain: certBundle.chain,
+        validFrom: parsedInfo.validFrom,
+        validTo: parsedInfo.validTo,
         autoRenew,
         status: 'valid',
         isWildcard: true,
-        wildcardDomain,
+        wildcardDomain: starPattern,
       };
+      this.attachOptionalCertFields(record, parsedInfo);
 
-      if (certInfo.subject) createData.subject = certInfo.subject;
-      if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
-      if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
-      if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+      const savedCert = await sslRepository.create(record);
+      await sslRepository.updateDomainSSLExpiry(domainId, savedCert.validTo);
 
-      const sslCertificate = await sslRepository.create(createData);
-
-      // Update domain SSL expiry
-      await sslRepository.updateDomainSSLExpiry(domainId, sslCertificate.validTo);
-
-      // Log activity
-      await this.logActivity(
-        userId,
-        `Issued wildcard SSL certificate ${wildcardDomain} for ${domain.name}`,
-        ip,
-        userAgent,
-        true
-      );
-
-      return sslCertificate;
-    } catch (error: any) {
-      logger.error(`Failed to issue wildcard SSL for ${domain.name}:`, error);
-
-      await this.logActivity(
-        userId,
-        `Failed to issue wildcard SSL for ${domain.name}: ${error.message}`,
-        ip,
-        userAgent,
-        false
-      );
-
-      throw new Error(`Failed to issue wildcard certificate: ${error.message}`);
+      await this.logActivity(actorId, `Issued wildcard cert ${starPattern} for ${targetDomain.name}`, clientIp, clientUa, true);
+      return savedCert;
+    } catch (err: any) {
+      logger.error(`[WildcardSSL] Issuance failed for ${targetDomain.name}:`, err);
+      await this.logActivity(actorId, `Wildcard cert issuance failed for ${targetDomain.name}: ${err.message}`, clientIp, clientUa, false);
+      throw new Error(`Wildcard certificate issuance failed: ${err.message}`);
     }
   }
 
   /**
-   * Upload manual wildcard SSL certificate
+   * Accept a user-uploaded wildcard PEM cert and optionally attach it to extra domains.
    */
-  async uploadWildcardCertificate(
+  async ingestWildcardUpload(
     dto: UploadWildcardSSLDto,
-    userId: string,
-    ip: string,
-    userAgent: string
+    actorId: string,
+    clientIp: string,
+    clientUa: string
   ): Promise<SSLCertificateWithDomain> {
-    const { domainId, certificate, privateKey, chain, issuer, additionalDomainIds } = dto;
+    const { domainId, certificate: pemCert, privateKey: pemKey, chain: pemChain, issuer: suppliedIssuer, additionalDomainIds } = dto;
 
-    // Check if primary domain exists
-    const domain = await prisma.domain.findUnique({
-      where: { id: domainId },
-    });
+    // Resolve primary domain
+    const primaryDomain = await prisma.domain.findUnique({ where: { id: domainId } });
+    if (!primaryDomain) throw new Error('Domain not found');
 
-    if (!domain) {
-      throw new Error('Domain not found');
-    }
+    const duplicateCheck = await sslRepository.findByDomainId(domainId);
+    if (duplicateCheck) throw new Error('SSL certificate already exists for this domain. Use update endpoint instead.');
 
-    // Check if certificate already exists for primary domain
-    const existingCert = await sslRepository.findByDomainId(domainId);
-    if (existingCert) {
-      throw new Error('SSL certificate already exists for this domain. Use update endpoint instead.');
-    }
-
-    // Parse and validate the certificate
-    let certInfo;
+    // Parse the supplied PEM content
+    let parsedCert;
     try {
-      certInfo = await acmeService.parseCertificate(certificate);
-    } catch (error: any) {
-      throw new Error(`Invalid certificate format: ${error.message}`);
+      parsedCert = await acmeService.parseCertificate(pemCert);
+    } catch (parseErr: any) {
+      throw new Error(`Cannot parse certificate: ${parseErr.message}`);
     }
 
-    // Validate it's a wildcard certificate
-    const wildcardInfo = await acmeService.validateWildcardCertificate(certificate);
-    if (!wildcardInfo.isWildcard) {
-      throw new Error('Certificate is not a wildcard certificate. Use the standard upload endpoint for regular certificates.');
+    // Must actually be a wildcard
+    const coverage = await acmeService.inspectWildcardCoverage(pemCert);
+    if (!coverage.hasWildcard) {
+      throw new Error('The uploaded certificate is not wildcard. For single-domain certs, use the standard upload.');
     }
 
-    // Validate private key matches certificate
+    // Key-pair integrity check
     try {
-      const isValidKeyPair = await acmeService.validateKeyPair(certificate, privateKey);
-      if (!isValidKeyPair) {
-        throw new Error('Private key does not match the certificate.');
-      }
-    } catch (error: any) {
-      if (error.message.includes('does not match')) {
-        throw error;
-      }
-      logger.warn('Key pair validation could not be completed:', error.message);
+      const keyMatch = await acmeService.validateKeyPair(pemCert, pemKey);
+      if (!keyMatch) throw new Error('Private key does not correspond to the certificate.');
+    } catch (keyErr: any) {
+      if (keyErr.message.includes('does not correspond')) throw keyErr;
+      logger.warn('[WildcardSSL] Key verification inconclusive:', keyErr.message);
     }
 
-    // Validate that primary domain is covered by the wildcard
-    const allDomainNames = [domain.name];
+    // Collect all hostnames that should be covered
+    const allHostnames = [primaryDomain.name];
+    const extraDomainRecords: Array<{ id: string; name: string }> = [];
 
-    // Collect additional domain names if provided
-    const additionalDomains: Array<{ id: string; name: string }> = [];
-    if (additionalDomainIds && additionalDomainIds.length > 0) {
-      for (const additionalDomainId of additionalDomainIds) {
-        const additionalDomain = await prisma.domain.findUnique({
-          where: { id: additionalDomainId },
-        });
-        if (!additionalDomain) {
-          throw new Error(`Additional domain not found: ${additionalDomainId}`);
-        }
-        additionalDomains.push({ id: additionalDomain.id, name: additionalDomain.name });
-        allDomainNames.push(additionalDomain.name);
+    if (additionalDomainIds?.length) {
+      for (const extraId of additionalDomainIds) {
+        const found = await prisma.domain.findUnique({ where: { id: extraId } });
+        if (!found) throw new Error(`Domain ID "${extraId}" does not exist`);
+        extraDomainRecords.push({ id: found.id, name: found.name });
+        allHostnames.push(found.name);
       }
     }
 
-    // Validate all domains match the wildcard
-    const validation = await this.validateWildcardCertificate(certificate, allDomainNames);
-    if (validation.unmatchedDomains.length > 0) {
+    // Verify the wildcard covers every listed hostname
+    const coverageCheck = await this.checkWildcardCoverage(pemCert, allHostnames);
+    if (coverageCheck.unmatchedDomains.length > 0) {
       throw new Error(
-        `Wildcard certificate "${wildcardInfo.wildcardDomain}" does not cover: ${validation.unmatchedDomains.join(', ')}. ` +
-        `Certificate covers: ${wildcardInfo.coveredDomains.join(', ')}`
+        `Wildcard "${coverage.wildcardPattern}" does not cover: ${coverageCheck.unmatchedDomains.join(', ')}. ` +
+        `Cert covers: ${coverage.allCoveredNames.join(', ')}`
       );
     }
 
-    // Validate certificate is not expired
-    const now = new Date();
-    if (certInfo.validTo < now) {
-      throw new Error(`Certificate has expired on ${certInfo.validTo.toISOString()}`);
+    // Reject expired certs
+    if (parsedCert.validTo < new Date()) {
+      throw new Error(`Certificate expired on ${parsedCert.validTo.toISOString()}`);
     }
 
-    const finalIssuer = issuer || certInfo.issuer || SSL_CONSTANTS.MANUAL_ISSUER;
-    const status = this.calculateStatus(certInfo.validTo);
+    const resolvedIssuer = suppliedIssuer || parsedCert.issuer || SSL_CONSTANTS.MANUAL_ISSUER;
+    const computedStatus = this.calculateStatus(parsedCert.validTo);
 
-    // Create primary SSL certificate in database
-    const createData: any = {
+    // Persist the primary certificate record
+    const primaryRecord: Record<string, any> = {
       domain: { connect: { id: domainId } },
-      commonName: certInfo.commonName,
-      sans: certInfo.sans,
-      issuer: finalIssuer,
-      certificate,
-      privateKey,
-      chain: chain || null,
-      validFrom: certInfo.validFrom,
-      validTo: certInfo.validTo,
+      commonName: parsedCert.commonName,
+      sans: parsedCert.sans,
+      issuer: resolvedIssuer,
+      certificate: pemCert,
+      privateKey: pemKey,
+      chain: pemChain || null,
+      validFrom: parsedCert.validFrom,
+      validTo: parsedCert.validTo,
       autoRenew: false,
-      status,
+      status: computedStatus,
       isWildcard: true,
-      wildcardDomain: wildcardInfo.wildcardDomain,
+      wildcardDomain: coverage.wildcardPattern,
     };
+    this.attachOptionalCertFields(primaryRecord, parsedCert);
 
-    if (certInfo.subject) createData.subject = certInfo.subject;
-    if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
-    if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
-    if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+    const savedPrimary = await sslRepository.create(primaryRecord);
 
-    const cert = await sslRepository.create(createData);
+    // Deploy PEM files on disk for the primary domain
+    await this.deployCertFiles(primaryDomain.name, pemCert, pemKey, pemChain || null);
+    await sslRepository.updateDomainSSLExpiry(domainId, parsedCert.validTo);
 
-    // Write certificate files for primary domain
-    try {
-      await fs.mkdir(SSL_CONSTANTS.CERTS_PATH, { recursive: true });
-      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domain.name}.crt`), certificate);
-      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domain.name}.key`), privateKey);
-      if (chain) {
-        await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domain.name}.chain.crt`), chain);
-      }
-    } catch (error) {
-      logger.error(`Failed to write wildcard certificate files for ${domain.name}:`, error);
-    }
-
-    // Update primary domain SSL expiry
-    await sslRepository.updateDomainSSLExpiry(domainId, certInfo.validTo);
-
-    // Apply to additional domains
-    for (const additionalDomain of additionalDomains) {
+    // Replicate to additional domains
+    for (const extraDom of extraDomainRecords) {
       try {
-        await this.applyWildcardCertToDomain(
-          additionalDomain.id,
-          additionalDomain.name,
-          certificate,
-          privateKey,
-          chain || null,
-          certInfo,
-          finalIssuer,
-          status,
-          wildcardInfo.wildcardDomain!
+        await this.replicateWildcardToDomain(
+          extraDom.id, extraDom.name,
+          pemCert, pemKey, pemChain || null,
+          parsedCert, resolvedIssuer, computedStatus,
+          coverage.wildcardPattern!
         );
-      } catch (error: any) {
-        logger.warn(`Failed to apply wildcard cert to ${additionalDomain.name}: ${error.message}`);
+      } catch (repErr: any) {
+        logger.warn(`[WildcardSSL] Replication to ${extraDom.name} failed: ${repErr.message}`);
       }
     }
 
-    // Log activity
-    const domainNames = allDomainNames.join(', ');
-    await this.logActivity(
-      userId,
-      `Uploaded wildcard SSL certificate for ${domainNames}`,
-      ip,
-      userAgent,
-      true
-    );
+    await this.logActivity(actorId, `Uploaded wildcard cert for ${allHostnames.join(', ')}`, clientIp, clientUa, true);
+    logger.info(`[WildcardSSL] Upload complete for ${allHostnames.join(', ')} by ${actorId}`);
 
-    logger.info(`Wildcard SSL certificate uploaded for ${domainNames} by user ${userId}`);
-
-    return cert;
+    return savedPrimary;
   }
 
   /**
-   * Apply an existing wildcard certificate to additional domains
+   * Spread an existing wildcard cert onto new domain entries.
    */
-  async applyWildcardToDomainsById(
+  async spreadWildcardToDomains(
     dto: ApplyWildcardSSLDto,
-    userId: string,
-    ip: string,
-    userAgent: string
+    actorId: string,
+    clientIp: string,
+    clientUa: string
   ): Promise<SSLCertificateWithDomain[]> {
     const { certificateId, targetDomainIds } = dto;
 
-    // Get the source wildcard certificate
-    const sourceCert = await sslRepository.findById(certificateId);
-    if (!sourceCert) {
-      throw new Error('SSL certificate not found');
+    const originCert = await sslRepository.findById(certificateId);
+    if (!originCert) throw new Error('SSL certificate not found');
+    if (!originCert.isWildcard) throw new Error('Certificate is not a wildcard certificate');
+
+    // Resolve all target domain records
+    const destinations: Array<{ id: string; name: string }> = [];
+    for (const destId of targetDomainIds) {
+      const domRecord = await prisma.domain.findUnique({ where: { id: destId } });
+      if (!domRecord) throw new Error(`Domain not found: ${destId}`);
+      destinations.push({ id: domRecord.id, name: domRecord.name });
     }
 
-    if (!sourceCert.isWildcard) {
-      throw new Error('Certificate is not a wildcard certificate');
-    }
-
-    // Validate target domains
-    const targetDomains: Array<{ id: string; name: string }> = [];
-    for (const targetDomainId of targetDomainIds) {
-      const domain = await prisma.domain.findUnique({
-        where: { id: targetDomainId },
-      });
-      if (!domain) {
-        throw new Error(`Domain not found: ${targetDomainId}`);
-      }
-      targetDomains.push({ id: domain.id, name: domain.name });
-    }
-
-    // Validate all target domains match the wildcard pattern
-    const domainNames = targetDomains.map(d => d.name);
-    const validation = await this.validateWildcardCertificate(sourceCert.certificate, domainNames);
-    if (validation.unmatchedDomains.length > 0) {
+    // Verify coverage
+    const hostList = destinations.map(d => d.name);
+    const coverageResult = await this.checkWildcardCoverage(originCert.certificate, hostList);
+    if (coverageResult.unmatchedDomains.length > 0) {
       throw new Error(
-        `Wildcard certificate does not cover: ${validation.unmatchedDomains.join(', ')}. ` +
-        `Wildcard pattern: ${sourceCert.wildcardDomain}`
+        `Wildcard cert does not cover: ${coverageResult.unmatchedDomains.join(', ')}. ` +
+        `Pattern: ${originCert.wildcardDomain}`
       );
     }
 
-    const status = this.calculateStatus(sourceCert.validTo);
-    const results: SSLCertificateWithDomain[] = [];
+    const currentStatus = this.calculateStatus(originCert.validTo);
+    const createdCerts: SSLCertificateWithDomain[] = [];
 
-    for (const target of targetDomains) {
-      try {
-        // Check if cert already exists for this domain
-        const existingCert = await sslRepository.findByDomainId(target.id);
-        if (existingCert) {
-          logger.warn(`SSL certificate already exists for ${target.name}, skipping`);
-          continue;
-        }
-
-        const certInfo = await acmeService.parseCertificate(sourceCert.certificate);
-        const result = await this.applyWildcardCertToDomain(
-          target.id,
-          target.name,
-          sourceCert.certificate,
-          sourceCert.privateKey,
-          sourceCert.chain,
-          certInfo,
-          sourceCert.issuer,
-          status,
-          sourceCert.wildcardDomain!
-        );
-        results.push(result);
-      } catch (error: any) {
-        logger.error(`Failed to apply wildcard cert to ${target.name}: ${error.message}`);
-        throw new Error(`Failed to apply certificate to ${target.name}: ${error.message}`);
+    for (const dest of destinations) {
+      const alreadyHasCert = await sslRepository.findByDomainId(dest.id);
+      if (alreadyHasCert) {
+        logger.warn(`[WildcardSSL] ${dest.name} already has a cert — skipping`);
+        continue;
       }
+
+      const parsedInfo = await acmeService.parseCertificate(originCert.certificate);
+      const newEntry = await this.replicateWildcardToDomain(
+        dest.id, dest.name,
+        originCert.certificate, originCert.privateKey, originCert.chain,
+        parsedInfo, originCert.issuer, currentStatus,
+        originCert.wildcardDomain!
+      );
+      createdCerts.push(newEntry);
     }
 
-    // Log activity
-    const appliedNames = results.map(r => r.domain.name).join(', ');
-    await this.logActivity(
-      userId,
-      `Applied wildcard SSL certificate to domains: ${appliedNames}`,
-      ip,
-      userAgent,
-      true
-    );
+    const nameList = createdCerts.map(c => c.domain.name).join(', ');
+    await this.logActivity(actorId, `Spread wildcard cert to: ${nameList}`, clientIp, clientUa, true);
 
-    return results;
+    return createdCerts;
   }
 
   /**
-   * Helper: Apply wildcard certificate data to a specific domain
+   * Internal helper: create an SSL record and deploy files for one domain using shared wildcard data.
    */
-  private async applyWildcardCertToDomain(
-    domainId: string,
-    domainName: string,
-    certificate: string,
-    privateKey: string,
-    chain: string | null,
-    certInfo: any,
-    issuer: string,
-    status: SSLStatus,
-    wildcardDomain: string
+  private async replicateWildcardToDomain(
+    targetDomainId: string,
+    targetHostname: string,
+    pemCert: string,
+    pemKey: string,
+    pemChain: string | null,
+    parsedInfo: any,
+    issuerName: string,
+    certStatus: SSLStatus,
+    wcPattern: string
   ): Promise<SSLCertificateWithDomain> {
-    const createData: any = {
-      domain: { connect: { id: domainId } },
-      commonName: certInfo.commonName,
-      sans: certInfo.sans,
-      issuer,
-      certificate,
-      privateKey,
-      chain: chain || null,
-      validFrom: certInfo.validFrom,
-      validTo: certInfo.validTo,
+    const dbRecord: Record<string, any> = {
+      domain: { connect: { id: targetDomainId } },
+      commonName: parsedInfo.commonName,
+      sans: parsedInfo.sans,
+      issuer: issuerName,
+      certificate: pemCert,
+      privateKey: pemKey,
+      chain: pemChain,
+      validFrom: parsedInfo.validFrom,
+      validTo: parsedInfo.validTo,
       autoRenew: false,
-      status,
+      status: certStatus,
       isWildcard: true,
-      wildcardDomain,
+      wildcardDomain: wcPattern,
     };
+    this.attachOptionalCertFields(dbRecord, parsedInfo);
 
-    if (certInfo.subject) createData.subject = certInfo.subject;
-    if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
-    if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
-    if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+    const entry = await sslRepository.create(dbRecord);
+    await this.deployCertFiles(targetHostname, pemCert, pemKey, pemChain);
+    await sslRepository.updateDomainSSLExpiry(targetDomainId, parsedInfo.validTo);
 
-    const newCert = await sslRepository.create(createData);
+    logger.info(`[WildcardSSL] Replicated wildcard cert to ${targetHostname}`);
+    return entry;
+  }
 
-    // Write certificate files
+  /**
+   * Copy optional parsed certificate metadata onto a DB record object.
+   */
+  private attachOptionalCertFields(record: Record<string, any>, parsed: any): void {
+    if (parsed.subject) record.subject = parsed.subject;
+    if (parsed.subjectDetails) record.subjectDetails = parsed.subjectDetails;
+    if (parsed.issuerDetails) record.issuerDetails = parsed.issuerDetails;
+    if (parsed.serialNumber) record.serialNumber = parsed.serialNumber;
+  }
+
+  /**
+   * Write PEM files to the nginx SSL directory for a given hostname.
+   */
+  private async deployCertFiles(
+    hostname: string,
+    certPem: string,
+    keyPem: string,
+    chainPem: string | null
+  ): Promise<void> {
     try {
       await fs.mkdir(SSL_CONSTANTS.CERTS_PATH, { recursive: true });
-      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domainName}.crt`), certificate);
-      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domainName}.key`), privateKey);
-      if (chain) {
-        await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domainName}.chain.crt`), chain);
+      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${hostname}.crt`), certPem);
+      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${hostname}.key`), keyPem);
+      if (chainPem) {
+        await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${hostname}.chain.crt`), chainPem);
       }
-    } catch (error) {
-      logger.error(`Failed to write certificate files for ${domainName}:`, error);
+    } catch (ioErr) {
+      logger.error(`[WildcardSSL] Failed to deploy cert files for ${hostname}:`, ioErr);
     }
-
-    // Update domain SSL expiry
-    await sslRepository.updateDomainSSLExpiry(domainId, certInfo.validTo);
-
-    logger.info(`Wildcard certificate applied to ${domainName}`);
-    return newCert;
   }
 
   /**
-   * Get all wildcard certificates
+   * Return all wildcard-type certificates from the store.
    */
-  async getWildcardCertificates(): Promise<SSLCertificateWithDomain[]> {
+  async listWildcardCerts(): Promise<SSLCertificateWithDomain[]> {
     return sslRepository.findWildcardCertificates();
   }
 

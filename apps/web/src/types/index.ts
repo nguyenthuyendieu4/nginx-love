@@ -105,6 +105,17 @@ export interface SSLCertificate {
   autoRenew: boolean;
   status: 'valid' | 'expiring' | 'expired';
   daysUntilExpiry?: number;
+  isWildcard?: boolean;
+  wildcardDomain?: string;
+}
+
+export interface WildcardValidationResult {
+  isValid: boolean;
+  isWildcard: boolean;
+  wildcardDomain: string | null;
+  matchedDomains: string[];
+  unmatchedDomains: string[];
+  errors: string[];
 }
 
 export interface Alert {

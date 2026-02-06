@@ -86,177 +86,157 @@ export class AcmeService {
   }
 
   /**
-   * Issue wildcard certificate using acme.sh with DNS-01 challenge
-   * Wildcard certificates require DNS validation (cannot use HTTP-01)
+   * Obtain a wildcard cert through DNS-01 validation via acme.sh.
+   * HTTP-01 cannot validate wildcard entries — DNS proof is mandatory.
    */
-  async issueWildcardCertificate(options: {
-    baseDomain: string;
-    email?: string;
-    dnsProvider: string;
-    dnsCredentials?: Record<string, string>;
+  async obtainWildcardCert(params: {
+    rootDomain: string;
+    contactEmail?: string;
+    dnsPlugin: string;
+    dnsApiTokens?: Record<string, string>;
   }): Promise<CertificateFiles> {
-    try {
-      const { baseDomain, email, dnsProvider, dnsCredentials } = options;
+    const { rootDomain, contactEmail, dnsPlugin, dnsApiTokens } = params;
 
-      // Check if acme.sh is installed
-      const installed = await this.isAcmeInstalled();
-      if (!installed) {
-        await this.installAcme(email);
-      }
-
-      const wildcardDomain = `*.${baseDomain}`;
-      logger.info(`Issuing wildcard certificate for ${wildcardDomain} using DNS-01 challenge`);
-
-      const homeDir = process.env.HOME || '/root';
-      const acmeScript = path.join(homeDir, '.acme.sh', 'acme.sh');
-
-      // Set DNS credentials as environment variables if provided
-      const envVars: Record<string, string> = { ...process.env } as Record<string, string>;
-      if (dnsCredentials) {
-        for (const [key, value] of Object.entries(dnsCredentials)) {
-          envVars[this.sanitizeInput(key)] = this.sanitizeInput(value);
-        }
-      }
-
-      // Build wildcard issuance command with DNS-01 challenge
-      let issueCmd = `${acmeScript} --issue`;
-
-      // Set default CA
-      const caServer = this.defaultCA;
-      issueCmd += ` --server ${caServer}`;
-      logger.info(`Using CA server: ${caServer}`);
-
-      // Add both the wildcard domain and the base domain
-      issueCmd += ` -d ${this.sanitizeInput(wildcardDomain)}`;
-      issueCmd += ` -d ${this.sanitizeInput(baseDomain)}`;
-
-      // DNS-01 challenge (required for wildcards)
-      issueCmd += ` --dns ${this.sanitizeInput(dnsProvider)}`;
-
-      // Add email if provided
-      if (email) {
-        if (!this.validateEmail(email)) {
-          throw new Error('Invalid email format');
-        }
-        issueCmd += ` --accountemail ${this.sanitizeInput(email)}`;
-      }
-
-      // Force issue
-      issueCmd += ` --force`;
-
-      const { stdout, stderr } = await execAsync(issueCmd, {
-        env: envVars,
-      });
-      logger.info(`acme.sh wildcard output: ${stdout}`);
-
-      if (stderr) {
-        logger.warn(`acme.sh wildcard stderr: ${stderr}`);
-      }
-
-      // Get certificate files
-      const baseDir = path.join(homeDir, '.acme.sh');
-      let certDir = path.join(baseDir, wildcardDomain);
-
-      // Check if ECC directory exists
-      const eccDir = path.join(baseDir, `${wildcardDomain}_ecc`);
-      if (fs.existsSync(eccDir)) {
-        certDir = eccDir;
-      }
-
-      // acme.sh may use the base domain name for the directory
-      if (!fs.existsSync(certDir)) {
-        certDir = path.join(baseDir, baseDomain);
-        const baseDomainEccDir = path.join(baseDir, `${baseDomain}_ecc`);
-        if (fs.existsSync(baseDomainEccDir)) {
-          certDir = baseDomainEccDir;
-        }
-      }
-
-      const certFileName = `${wildcardDomain}.cer`;
-      const keyFileName = `${wildcardDomain}.key`;
-
-      // Try wildcard filenames first, fallback to base domain
-      let certificateFile = path.join(certDir, certFileName);
-      let keyFile = path.join(certDir, keyFileName);
-
-      if (!fs.existsSync(certificateFile)) {
-        certificateFile = path.join(certDir, `${baseDomain}.cer`);
-        keyFile = path.join(certDir, `${baseDomain}.key`);
-      }
-
-      const caFile = path.join(certDir, 'ca.cer');
-      const fullchainFile = path.join(certDir, 'fullchain.cer');
-
-      // Read certificate files
-      const certificate = await fs.promises.readFile(certificateFile, 'utf8');
-      const privateKey = await fs.promises.readFile(keyFile, 'utf8');
-      const chain = await fs.promises.readFile(caFile, 'utf8');
-      const fullchain = await fs.promises.readFile(fullchainFile, 'utf8');
-
-      // Install certificate to nginx directory
-      const nginxSslDir = '/etc/nginx/ssl';
-      if (!fs.existsSync(nginxSslDir)) {
-        await fs.promises.mkdir(nginxSslDir, { recursive: true });
-      }
-
-      const nginxCertFile = path.join(nginxSslDir, `wildcard.${baseDomain}.crt`);
-      const nginxKeyFile = path.join(nginxSslDir, `wildcard.${baseDomain}.key`);
-      const nginxChainFile = path.join(nginxSslDir, `wildcard.${baseDomain}.chain.crt`);
-
-      await fs.promises.writeFile(nginxCertFile, fullchain);
-      await fs.promises.writeFile(nginxKeyFile, privateKey);
-      await fs.promises.writeFile(nginxChainFile, chain);
-
-      logger.info(`Wildcard certificate installed to ${nginxSslDir}`);
-
-      return {
-        certificate,
-        privateKey,
-        chain,
-        fullchain,
-      };
-    } catch (error: any) {
-      logger.error('Failed to issue wildcard certificate:', error);
-      throw new Error(`Failed to issue wildcard certificate: ${error.message}`);
+    const acmeReady = await this.isAcmeInstalled();
+    if (!acmeReady) {
+      await this.installAcme(contactEmail);
     }
+
+    const starDomain = `*.${rootDomain}`;
+    logger.info(`[WildcardSSL] Requesting cert for ${starDomain} via DNS plugin ${dnsPlugin}`);
+
+    const userHome = process.env.HOME || '/root';
+    const acmeBin = path.join(userHome, '.acme.sh', 'acme.sh');
+
+    // Prepare process environment with DNS API tokens
+    const processEnv: Record<string, string> = { ...process.env } as Record<string, string>;
+    if (dnsApiTokens) {
+      Object.entries(dnsApiTokens).forEach(([envKey, envVal]) => {
+        processEnv[this.sanitizeInput(envKey)] = this.sanitizeInput(envVal);
+      });
+    }
+
+    // Compose the acme.sh command for wildcard + root domain
+    const cmdParts = [
+      acmeBin,
+      '--issue',
+      `--server ${this.defaultCA}`,
+      `-d ${this.sanitizeInput(starDomain)}`,
+      `-d ${this.sanitizeInput(rootDomain)}`,
+      `--dns ${this.sanitizeInput(dnsPlugin)}`,
+    ];
+
+    if (contactEmail) {
+      if (!this.validateEmail(contactEmail)) {
+        throw new Error('Provided email address is malformed');
+      }
+      cmdParts.push(`--accountemail ${this.sanitizeInput(contactEmail)}`);
+    }
+
+    cmdParts.push('--force');
+    const fullCmd = cmdParts.join(' ');
+
+    try {
+      const result = await execAsync(fullCmd, { env: processEnv });
+      logger.info(`[WildcardSSL] acme.sh stdout: ${result.stdout}`);
+      if (result.stderr) {
+        logger.warn(`[WildcardSSL] acme.sh stderr: ${result.stderr}`);
+      }
+    } catch (cmdErr: any) {
+      logger.error('[WildcardSSL] acme.sh command failed:', cmdErr);
+      throw new Error(`Wildcard certificate request failed: ${cmdErr.message}`);
+    }
+
+    // Locate output directory — acme.sh may create dirs named by wildcard or root domain, with optional _ecc suffix
+    const acmeBase = path.join(userHome, '.acme.sh');
+    const candidateDirs = [
+      path.join(acmeBase, `${starDomain}_ecc`),
+      path.join(acmeBase, starDomain),
+      path.join(acmeBase, `${rootDomain}_ecc`),
+      path.join(acmeBase, rootDomain),
+    ];
+
+    const outputDir = candidateDirs.find(d => fs.existsSync(d));
+    if (!outputDir) {
+      throw new Error(`Certificate output directory not found after issuance for ${starDomain}`);
+    }
+
+    // Resolve cert file paths — try wildcard-prefixed names first, then root domain names
+    const resolveFile = (baseName: string): string => {
+      const tryPaths = [
+        path.join(outputDir, `${starDomain}.${baseName}`),
+        path.join(outputDir, `${rootDomain}.${baseName}`),
+        path.join(outputDir, baseName),
+      ];
+      const found = tryPaths.find(p => fs.existsSync(p));
+      if (!found) {
+        throw new Error(`Required cert file "${baseName}" not found in ${outputDir}`);
+      }
+      return found;
+    };
+
+    const pemCert = await fs.promises.readFile(resolveFile('cer'), 'utf8');
+    const pemKey = await fs.promises.readFile(resolveFile('key'), 'utf8');
+    const pemChain = await fs.promises.readFile(path.join(outputDir, 'ca.cer'), 'utf8');
+    const pemFullchain = await fs.promises.readFile(path.join(outputDir, 'fullchain.cer'), 'utf8');
+
+    // Deploy files into the nginx ssl directory
+    const sslOutputDir = '/etc/nginx/ssl';
+    if (!fs.existsSync(sslOutputDir)) {
+      await fs.promises.mkdir(sslOutputDir, { recursive: true });
+    }
+
+    const filePrefix = `wc_${rootDomain}`;
+    await fs.promises.writeFile(path.join(sslOutputDir, `${filePrefix}.crt`), pemFullchain);
+    await fs.promises.writeFile(path.join(sslOutputDir, `${filePrefix}.key`), pemKey);
+    await fs.promises.writeFile(path.join(sslOutputDir, `${filePrefix}.chain.crt`), pemChain);
+
+    logger.info(`[WildcardSSL] Deployed wildcard cert files to ${sslOutputDir}`);
+
+    return {
+      certificate: pemCert,
+      privateKey: pemKey,
+      chain: pemChain,
+      fullchain: pemFullchain,
+    };
   }
 
   /**
-   * Validate that a certificate is a wildcard and matches the expected pattern
+   * Inspect a PEM certificate to determine whether it contains wildcard entries
+   * and collect all domain names covered by the certificate.
    */
-  async validateWildcardCertificate(certContent: string): Promise<{
-    isWildcard: boolean;
-    wildcardDomain: string | null;
-    coveredDomains: string[];
+  async inspectWildcardCoverage(pemContent: string): Promise<{
+    hasWildcard: boolean;
+    wildcardPattern: string | null;
+    allCoveredNames: string[];
   }> {
-    const certInfo = await this.parseCertificate(certContent);
+    const parsed = await this.parseCertificate(pemContent);
 
-    let isWildcard = false;
-    let wildcardDomain: string | null = null;
-    const coveredDomains: string[] = [];
+    let hasWildcard = false;
+    let wildcardPattern: string | null = null;
+    const allCoveredNames: string[] = [];
 
-    // Check CN for wildcard
-    if (certInfo.commonName.startsWith('*.')) {
-      isWildcard = true;
-      wildcardDomain = certInfo.commonName;
+    // Inspect the CN field
+    if (parsed.commonName.startsWith('*.')) {
+      hasWildcard = true;
+      wildcardPattern = parsed.commonName;
     }
 
-    // Check SANs for wildcard
-    for (const san of certInfo.sans) {
-      if (san.startsWith('*.')) {
-        isWildcard = true;
-        if (!wildcardDomain) {
-          wildcardDomain = san;
-        }
+    // Walk through Subject Alt Names
+    for (const altName of parsed.sans) {
+      if (altName.startsWith('*.') && !wildcardPattern) {
+        hasWildcard = true;
+        wildcardPattern = altName;
       }
-      coveredDomains.push(san);
+      allCoveredNames.push(altName);
     }
 
-    if (!coveredDomains.includes(certInfo.commonName)) {
-      coveredDomains.push(certInfo.commonName);
+    // Ensure CN is included in the list if not already
+    if (!allCoveredNames.includes(parsed.commonName)) {
+      allCoveredNames.push(parsed.commonName);
     }
 
-    return { isWildcard, wildcardDomain, coveredDomains };
+    return { hasWildcard, wildcardPattern, allCoveredNames };
   }
 
   /**
