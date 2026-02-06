@@ -24,6 +24,7 @@ export interface NotificationConfig {
   botToken?: string;
   // Jira / JSM configuration
   jiraType?: 'jira' | 'jsm';
+  jiraDeployment?: 'cloud' | 'datacenter';
   baseUrl?: string;
   apiToken?: string;
   userEmail?: string;

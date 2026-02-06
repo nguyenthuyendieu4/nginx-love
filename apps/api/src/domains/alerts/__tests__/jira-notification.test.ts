@@ -148,7 +148,7 @@ describe('Jira Notification Service', () => {
       };
 
       await expect(sendJiraNotification(config, 'Test', 'Message'))
-        .rejects.toThrow('Jira configuration incomplete: baseUrl, userEmail, and apiToken are required');
+        .rejects.toThrow('Jira configuration incomplete: baseUrl and apiToken are required');
     });
 
     it('should throw error when apiToken is missing', async () => {
@@ -160,7 +160,63 @@ describe('Jira Notification Service', () => {
       };
 
       await expect(sendJiraNotification(config, 'Test', 'Message'))
-        .rejects.toThrow('Jira configuration incomplete: baseUrl, userEmail, and apiToken are required');
+        .rejects.toThrow('Jira configuration incomplete: baseUrl and apiToken are required');
+    });
+
+    it('should throw error when userEmail is missing for Cloud deployment', async () => {
+      const config: NotificationConfig = {
+        jiraType: 'jira',
+        jiraDeployment: 'cloud',
+        baseUrl: 'https://test.atlassian.net',
+        apiToken: 'test-token',
+        projectKey: 'OPS'
+      };
+
+      await expect(sendJiraNotification(config, 'Test', 'Message'))
+        .rejects.toThrow('Jira Cloud configuration incomplete: userEmail is required');
+    });
+
+    it('should not require userEmail for Data Center deployment', async () => {
+      const config: NotificationConfig = {
+        jiraType: 'jira',
+        jiraDeployment: 'datacenter',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'pat-token-here',
+        projectKey: 'OPS'
+      };
+
+      (axios.post as any).mockResolvedValueOnce({
+        data: { key: 'OPS-300' }
+      });
+
+      const result = await sendJiraNotification(config, 'Test Subject', 'Test message');
+      expect(result).toBe(true);
+    });
+
+    it('should use Bearer auth for Data Center deployment', async () => {
+      const config: NotificationConfig = {
+        jiraType: 'jira',
+        jiraDeployment: 'datacenter',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'my-pat-token',
+        projectKey: 'OPS'
+      };
+
+      (axios.post as any).mockResolvedValueOnce({
+        data: { key: 'OPS-301' }
+      });
+
+      await sendJiraNotification(config, 'Test', 'Message');
+
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer my-pat-token'
+          })
+        })
+      );
     });
 
     it('should throw error when projectKey is missing for Jira type', async () => {

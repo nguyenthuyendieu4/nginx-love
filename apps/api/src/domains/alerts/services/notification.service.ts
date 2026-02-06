@@ -100,13 +100,28 @@ export async function sendJiraNotification(
   message: string
 ): Promise<boolean> {
   try {
-    if (!config.baseUrl || !config.userEmail || !config.apiToken) {
-      throw new Error('Jira configuration incomplete: baseUrl, userEmail, and apiToken are required');
+    const isDataCenter = config.jiraDeployment === 'datacenter';
+
+    if (!config.baseUrl || !config.apiToken) {
+      throw new Error('Jira configuration incomplete: baseUrl and apiToken are required');
     }
 
-    const authHeader = Buffer.from(`${config.userEmail}:${config.apiToken}`).toString('base64');
+    if (!isDataCenter && !config.userEmail) {
+      throw new Error('Jira Cloud configuration incomplete: userEmail is required');
+    }
+
+    let authHeaderValue: string;
+    if (isDataCenter) {
+      // Data Center / Server uses Personal Access Token with Bearer auth
+      authHeaderValue = `Bearer ${config.apiToken}`;
+    } else {
+      // Cloud uses email + API token with Basic auth
+      const basicAuth = Buffer.from(`${config.userEmail}:${config.apiToken}`).toString('base64');
+      authHeaderValue = `Basic ${basicAuth}`;
+    }
+
     const headers = {
-      'Authorization': `Basic ${authHeader}`,
+      'Authorization': authHeaderValue,
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     };
