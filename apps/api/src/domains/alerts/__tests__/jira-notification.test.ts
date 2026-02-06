@@ -1,5 +1,6 @@
 /**
  * Jira Notification Service Tests
+ * Tests for Jira Data Center / Server integration using PAT (Bearer auth)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -47,9 +48,8 @@ describe('Jira Notification Service', () => {
     it('should create a Jira issue successfully', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'test-pat-token',
         projectKey: 'OPS',
         issueType: 'Task'
       };
@@ -62,7 +62,7 @@ describe('Jira Notification Service', () => {
 
       expect(result).toBe(true);
       expect(axios.post).toHaveBeenCalledWith(
-        'https://test.atlassian.net/rest/api/2/issue',
+        'https://jira.company.com/rest/api/2/issue',
         expect.objectContaining({
           fields: expect.objectContaining({
             project: { key: 'OPS' },
@@ -72,6 +72,7 @@ describe('Jira Notification Service', () => {
         }),
         expect.objectContaining({
           headers: expect.objectContaining({
+            'Authorization': 'Bearer test-pat-token',
             'Content-Type': 'application/json'
           })
         })
@@ -81,9 +82,8 @@ describe('Jira Notification Service', () => {
     it('should create a JSM service request successfully', async () => {
       const config: NotificationConfig = {
         jiraType: 'jsm',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'test-pat-token',
         serviceDeskId: '1',
         requestTypeId: '10'
       };
@@ -96,7 +96,7 @@ describe('Jira Notification Service', () => {
 
       expect(result).toBe(true);
       expect(axios.post).toHaveBeenCalledWith(
-        'https://test.atlassian.net/rest/servicedeskapi/request',
+        'https://jira.company.com/rest/servicedeskapi/request',
         expect.objectContaining({
           serviceDeskId: '1',
           requestTypeId: '10',
@@ -107,6 +107,7 @@ describe('Jira Notification Service', () => {
         }),
         expect.objectContaining({
           headers: expect.objectContaining({
+            'Authorization': 'Bearer test-pat-token',
             'Content-Type': 'application/json'
           })
         })
@@ -116,9 +117,8 @@ describe('Jira Notification Service', () => {
     it('should use default issue type "Task" when not specified', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'test-pat-token',
         projectKey: 'OPS'
       };
 
@@ -142,8 +142,7 @@ describe('Jira Notification Service', () => {
     it('should throw error when baseUrl is missing', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        apiToken: 'test-pat-token',
         projectKey: 'OPS'
       };
 
@@ -154,8 +153,7 @@ describe('Jira Notification Service', () => {
     it('should throw error when apiToken is missing', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
+        baseUrl: 'https://jira.company.com',
         projectKey: 'OPS'
       };
 
@@ -163,68 +161,11 @@ describe('Jira Notification Service', () => {
         .rejects.toThrow('Jira configuration incomplete: baseUrl and apiToken are required');
     });
 
-    it('should throw error when userEmail is missing for Cloud deployment', async () => {
-      const config: NotificationConfig = {
-        jiraType: 'jira',
-        jiraDeployment: 'cloud',
-        baseUrl: 'https://test.atlassian.net',
-        apiToken: 'test-token',
-        projectKey: 'OPS'
-      };
-
-      await expect(sendJiraNotification(config, 'Test', 'Message'))
-        .rejects.toThrow('Jira Cloud configuration incomplete: userEmail is required');
-    });
-
-    it('should not require userEmail for Data Center deployment', async () => {
-      const config: NotificationConfig = {
-        jiraType: 'jira',
-        jiraDeployment: 'datacenter',
-        baseUrl: 'https://jira.company.com',
-        apiToken: 'pat-token-here',
-        projectKey: 'OPS'
-      };
-
-      (axios.post as any).mockResolvedValueOnce({
-        data: { key: 'OPS-300' }
-      });
-
-      const result = await sendJiraNotification(config, 'Test Subject', 'Test message');
-      expect(result).toBe(true);
-    });
-
-    it('should use Bearer auth for Data Center deployment', async () => {
-      const config: NotificationConfig = {
-        jiraType: 'jira',
-        jiraDeployment: 'datacenter',
-        baseUrl: 'https://jira.company.com',
-        apiToken: 'my-pat-token',
-        projectKey: 'OPS'
-      };
-
-      (axios.post as any).mockResolvedValueOnce({
-        data: { key: 'OPS-301' }
-      });
-
-      await sendJiraNotification(config, 'Test', 'Message');
-
-      expect(axios.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(Object),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer my-pat-token'
-          })
-        })
-      );
-    });
-
     it('should throw error when projectKey is missing for Jira type', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token'
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'test-pat-token'
       };
 
       await expect(sendJiraNotification(config, 'Test', 'Message'))
@@ -234,9 +175,8 @@ describe('Jira Notification Service', () => {
     it('should throw error when serviceDeskId is missing for JSM type', async () => {
       const config: NotificationConfig = {
         jiraType: 'jsm',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'test-pat-token',
         requestTypeId: '10'
       };
 
@@ -247,9 +187,8 @@ describe('Jira Notification Service', () => {
     it('should handle Jira API errors', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'test-pat-token',
         projectKey: 'OPS'
       };
 
@@ -268,9 +207,8 @@ describe('Jira Notification Service', () => {
     it('should strip trailing slashes from baseUrl', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net///',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        baseUrl: 'https://jira.company.com///',
+        apiToken: 'test-pat-token',
         projectKey: 'OPS'
       };
 
@@ -281,18 +219,17 @@ describe('Jira Notification Service', () => {
       await sendJiraNotification(config, 'Test', 'Message');
 
       expect(axios.post).toHaveBeenCalledWith(
-        'https://test.atlassian.net/rest/api/2/issue',
+        'https://jira.company.com/rest/api/2/issue',
         expect.any(Object),
         expect.any(Object)
       );
     });
 
-    it('should use Basic auth with email and apiToken', async () => {
+    it('should always use Bearer auth with PAT', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'my-secret-token',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'my-secret-pat',
         projectKey: 'OPS'
       };
 
@@ -302,13 +239,12 @@ describe('Jira Notification Service', () => {
 
       await sendJiraNotification(config, 'Test', 'Message');
 
-      const expectedAuth = Buffer.from('user@example.com:my-secret-token').toString('base64');
       expect(axios.post).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(Object),
         expect.objectContaining({
           headers: expect.objectContaining({
-            'Authorization': `Basic ${expectedAuth}`
+            'Authorization': 'Bearer my-secret-pat'
           })
         })
       );
@@ -319,9 +255,8 @@ describe('Jira Notification Service', () => {
     it('should send test notification to Jira project', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'test-pat-token',
         projectKey: 'OPS'
       };
 
@@ -338,9 +273,8 @@ describe('Jira Notification Service', () => {
     it('should send test notification to JSM service desk', async () => {
       const config: NotificationConfig = {
         jiraType: 'jsm',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
-        apiToken: 'test-token',
+        baseUrl: 'https://jira.company.com',
+        apiToken: 'test-pat-token',
         serviceDeskId: '1',
         requestTypeId: '10'
       };
@@ -358,8 +292,7 @@ describe('Jira Notification Service', () => {
     it('should return failure when Jira test notification fails', async () => {
       const config: NotificationConfig = {
         jiraType: 'jira',
-        baseUrl: 'https://test.atlassian.net',
-        userEmail: 'user@example.com',
+        baseUrl: 'https://jira.company.com',
         apiToken: 'invalid-token',
         projectKey: 'OPS'
       };
@@ -385,9 +318,8 @@ describe('Jira Notification Service', () => {
           type: 'jira',
           config: {
             jiraType: 'jira' as const,
-            baseUrl: 'https://test.atlassian.net',
-            userEmail: 'user@example.com',
-            apiToken: 'test-token',
+            baseUrl: 'https://jira.company.com',
+            apiToken: 'test-pat-token',
             projectKey: 'OPS'
           }
         }
@@ -416,9 +348,8 @@ describe('Jira Notification Service', () => {
           type: 'jira',
           config: {
             jiraType: 'jira' as const,
-            baseUrl: 'https://test.atlassian.net',
-            userEmail: 'user@example.com',
-            apiToken: 'test-token',
+            baseUrl: 'https://jira.company.com',
+            apiToken: 'test-pat-token',
             projectKey: 'OPS'
           }
         },

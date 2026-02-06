@@ -58,9 +58,6 @@ export class NotificationChannelService {
       if (!data.config.baseUrl || !data.config.apiToken) {
         throw new Error('Base URL and API Token are required for Jira channel');
       }
-      if (data.config.jiraDeployment !== 'datacenter' && !data.config.userEmail) {
-        throw new Error('User Email is required for Jira Cloud channel');
-      }
       if (data.config.jiraType === 'jsm') {
         if (!data.config.serviceDeskId || !data.config.requestTypeId) {
           throw new Error('Service Desk ID and Request Type ID are required for JSM channel');

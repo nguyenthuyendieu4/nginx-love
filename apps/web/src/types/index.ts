@@ -195,12 +195,10 @@ export interface NotificationChannel {
     email?: string;
     chatId?: string;
     botToken?: string;
-    // Jira / JSM configuration
+    // Jira / JSM configuration (Data Center / Server only)
     jiraType?: 'jira' | 'jsm';
-    jiraDeployment?: 'cloud' | 'datacenter';
     baseUrl?: string;
     apiToken?: string;
-    userEmail?: string;
     projectKey?: string;
     issueType?: string;
     serviceDeskId?: string;

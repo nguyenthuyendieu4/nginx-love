@@ -47,10 +47,8 @@ function NotificationChannelsTab() {
     botToken: "",
     // Jira / JSM fields
     jiraType: "jira" as "jira" | "jsm",
-    jiraDeployment: "cloud" as "cloud" | "datacenter",
     baseUrl: "",
     apiToken: "",
-    userEmail: "",
     projectKey: "",
     issueType: "Task",
     serviceDeskId: "",
@@ -67,13 +65,9 @@ function NotificationChannelsTab() {
       // jira
       config = {
         jiraType: channelForm.jiraType,
-        jiraDeployment: channelForm.jiraDeployment,
         baseUrl: channelForm.baseUrl,
         apiToken: channelForm.apiToken,
       };
-      if (channelForm.jiraDeployment === 'cloud') {
-        config.userEmail = channelForm.userEmail;
-      }
       if (channelForm.jiraType === 'jsm') {
         config.serviceDeskId = channelForm.serviceDeskId;
         config.requestTypeId = channelForm.requestTypeId;
@@ -112,10 +106,8 @@ function NotificationChannelsTab() {
       chatId: "",
       botToken: "",
       jiraType: "jira",
-      jiraDeployment: "cloud",
       baseUrl: "",
       apiToken: "",
-      userEmail: "",
       projectKey: "",
       issueType: "Task",
       serviceDeskId: "",
@@ -254,23 +246,6 @@ function NotificationChannelsTab() {
               ) : (
                 <>
                   <div className="grid gap-2">
-                    <Label htmlFor="jiraDeployment">Deployment Type</Label>
-                    <Select value={channelForm.jiraDeployment} onValueChange={(value: "cloud" | "datacenter") => setChannelForm({ ...channelForm, jiraDeployment: value })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cloud">Jira Cloud</SelectItem>
-                        <SelectItem value="datacenter">Jira Data Center / Server</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {channelForm.jiraDeployment === 'cloud'
-                        ? 'Uses email + API Token authentication'
-                        : 'Uses Personal Access Token (PAT) authentication'}
-                    </p>
-                  </div>
-                  <div className="grid gap-2">
                     <Label htmlFor="jiraType">Jira Mode</Label>
                     <Select value={channelForm.jiraType} onValueChange={(value: "jira" | "jsm") => setChannelForm({ ...channelForm, jiraType: value })}>
                       <SelectTrigger>
@@ -293,31 +268,17 @@ function NotificationChannelsTab() {
                       id="baseUrl"
                       value={channelForm.baseUrl}
                       onChange={(e) => setChannelForm({ ...channelForm, baseUrl: e.target.value })}
-                      placeholder={channelForm.jiraDeployment === 'cloud' ? "https://your-domain.atlassian.net" : "https://jira.your-company.com"}
+                      placeholder="https://jira.your-company.com"
                     />
                   </div>
-                  {channelForm.jiraDeployment === 'cloud' && (
-                    <div className="grid gap-2">
-                      <Label htmlFor="userEmail">User Email</Label>
-                      <Input
-                        id="userEmail"
-                        type="email"
-                        value={channelForm.userEmail}
-                        onChange={(e) => setChannelForm({ ...channelForm, userEmail: e.target.value })}
-                        placeholder="user@example.com"
-                      />
-                    </div>
-                  )}
                   <div className="grid gap-2">
-                    <Label htmlFor="jiraApiToken">
-                      {channelForm.jiraDeployment === 'cloud' ? 'API Token' : 'Personal Access Token (PAT)'}
-                    </Label>
+                    <Label htmlFor="jiraApiToken">Personal Access Token (PAT)</Label>
                     <Input
                       id="jiraApiToken"
                       type="password"
                       value={channelForm.apiToken}
                       onChange={(e) => setChannelForm({ ...channelForm, apiToken: e.target.value })}
-                      placeholder={channelForm.jiraDeployment === 'cloud' ? "Jira API Token" : "Personal Access Token"}
+                      placeholder="Personal Access Token"
                     />
                   </div>
                   {channelForm.jiraType === 'jira' ? (
@@ -407,7 +368,7 @@ function NotificationChannelsTab() {
                     <Badge variant="outline">
                       {channel.type === 'email' ? <Mail className="h-3 w-3 mr-1" /> : channel.type === 'telegram' ? <MessageSquare className="h-3 w-3 mr-1" /> : <Ticket className="h-3 w-3 mr-1" />}
                       {channel.type === 'jira'
-                        ? `${channel.config.jiraType === 'jsm' ? 'JSM' : 'Jira'}${channel.config.jiraDeployment === 'datacenter' ? ' DC' : ''}`
+                        ? (channel.config.jiraType === 'jsm' ? 'JSM' : 'Jira')
                         : channel.type}
                     </Badge>
                   </TableCell>

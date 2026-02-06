@@ -93,6 +93,7 @@ export async function sendEmailNotification(
 
 /**
  * Send Jira notification (create issue or JSM request)
+ * Supports Jira Data Center / Server using Personal Access Token (PAT) with Bearer auth
  */
 export async function sendJiraNotification(
   config: NotificationConfig,
@@ -100,28 +101,12 @@ export async function sendJiraNotification(
   message: string
 ): Promise<boolean> {
   try {
-    const isDataCenter = config.jiraDeployment === 'datacenter';
-
     if (!config.baseUrl || !config.apiToken) {
       throw new Error('Jira configuration incomplete: baseUrl and apiToken are required');
     }
 
-    if (!isDataCenter && !config.userEmail) {
-      throw new Error('Jira Cloud configuration incomplete: userEmail is required');
-    }
-
-    let authHeaderValue: string;
-    if (isDataCenter) {
-      // Data Center / Server uses Personal Access Token with Bearer auth
-      authHeaderValue = `Bearer ${config.apiToken}`;
-    } else {
-      // Cloud uses email + API token with Basic auth
-      const basicAuth = Buffer.from(`${config.userEmail}:${config.apiToken}`).toString('base64');
-      authHeaderValue = `Basic ${basicAuth}`;
-    }
-
     const headers = {
-      'Authorization': authHeaderValue,
+      'Authorization': `Bearer ${config.apiToken}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     };
@@ -148,7 +133,7 @@ export async function sendJiraNotification(
       logger.info(`JSM ticket created successfully: ${response.data.issueKey || response.data.issueId}`);
       return true;
     } else {
-      // Jira Cloud/Server - create issue
+      // Jira Data Center / Server - create issue
       if (!config.projectKey) {
         throw new Error('Jira configuration incomplete: projectKey is required');
       }
