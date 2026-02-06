@@ -18,6 +18,20 @@ import { AppError } from '../../middleware/errorHandler';
 
 const execAsync = promisify(exec);
 
+// Well-known ports reserved by the system/nginx that NLB must not use
+export const RESERVED_PORTS = [
+  80,    // HTTP
+  443,   // HTTPS
+  22,    // SSH
+  25,    // SMTP
+  53,    // DNS
+  3306,  // MySQL
+  5432,  // PostgreSQL
+  6379,  // Redis
+  8080,  // Nginx panel (frontend)
+  3001,  // API backend
+];
+
 /**
  * Service for Network Load Balancer business logic
  */
@@ -29,6 +43,54 @@ export class NLBService {
 
   constructor() {
     this.repository = new NLBRepository();
+  }
+
+  /**
+   * Check if a port is currently in use on the system by another process.
+   * Uses `ss` to detect listening sockets. Ignores ports already owned by
+   * an existing NLB (identified via its database record).
+   */
+  async isPortInUseOnSystem(port: number, excludeNLBId?: string): Promise<boolean> {
+    // First, check against the reserved ports list
+    if (RESERVED_PORTS.includes(port)) {
+      return true;
+    }
+
+    // Check if port is used by another NLB in the database
+    const existingByPort = await this.repository.findByPort(port);
+    if (existingByPort && existingByPort.id !== excludeNLBId) {
+      return true;
+    }
+
+    // Check if port is in use on the system by any process
+    try {
+      const { stdout } = await execAsync(
+        `ss -tlnH sport = :${port} 2>/dev/null || ss -ulnH sport = :${port} 2>/dev/null`
+      );
+      if (stdout.trim().length > 0) {
+        // Port is in use on the system - but if it is owned by an existing NLB
+        // that we are updating, we can skip it (already handled above).
+        return true;
+      }
+    } catch {
+      // ss command failed - fall through, not blocking
+      logger.warn(`Could not check system port usage for port ${port}`);
+    }
+
+    return false;
+  }
+
+  /**
+   * Build a user-friendly message explaining why a port cannot be used.
+   */
+  getPortConflictMessage(port: number, existingNLBName?: string): string {
+    if (RESERVED_PORTS.includes(port)) {
+      return `Port ${port} is reserved by the system and cannot be used for NLB`;
+    }
+    if (existingNLBName) {
+      return `Port ${port} is already in use by NLB "${existingNLBName}"`;
+    }
+    return `Port ${port} is already in use by another process on the system`;
   }
 
   /**
@@ -56,8 +118,8 @@ export class NLBService {
    */
   async createNLB(input: CreateNLBInput): Promise<NLBWithRelations> {
     // Validate port range
-    if (input.port < 10000) {
-      throw new AppError('NLB port must be 10000 or higher', 400);
+    if (input.port < 1 || input.port > 65535) {
+      throw new AppError('NLB port must be between 1 and 65535', 400);
     }
 
     // Check if name already exists
@@ -66,10 +128,27 @@ export class NLBService {
       throw new AppError(`NLB with name "${input.name}" already exists`, 409);
     }
 
-    // Check if port already in use
+    // Check for port conflicts (reserved ports, other NLBs, system processes)
     const existingByPort = await this.repository.findByPort(input.port);
     if (existingByPort) {
-      throw new AppError(`Port ${input.port} is already in use by NLB "${existingByPort.name}"`, 409);
+      throw new AppError(this.getPortConflictMessage(input.port, existingByPort.name), 409);
+    }
+
+    if (RESERVED_PORTS.includes(input.port)) {
+      throw new AppError(this.getPortConflictMessage(input.port), 409);
+    }
+
+    // Check if port is in use on the system by another process
+    try {
+      const { stdout } = await execAsync(
+        `ss -tlnH sport = :${input.port} 2>/dev/null || ss -ulnH sport = :${input.port} 2>/dev/null`
+      );
+      if (stdout.trim().length > 0) {
+        throw new AppError(this.getPortConflictMessage(input.port), 409);
+      }
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.warn(`Could not check system port usage for port ${input.port}`);
     }
 
     // Create NLB in database
@@ -113,8 +192,8 @@ export class NLBService {
     const nlb = await this.getNLBById(id);
 
     // Validate port if changed
-    if (input.port && input.port < 10000) {
-      throw new AppError('NLB port must be 10000 or higher', 400);
+    if (input.port !== undefined && (input.port < 1 || input.port > 65535)) {
+      throw new AppError('NLB port must be between 1 and 65535', 400);
     }
 
     // Check if name already exists (if changing name)
@@ -129,7 +208,24 @@ export class NLBService {
     if (input.port && input.port !== nlb.port) {
       const existingByPort = await this.repository.findByPort(input.port);
       if (existingByPort && existingByPort.id !== id) {
-        throw new AppError(`Port ${input.port} is already in use by NLB "${existingByPort.name}"`, 409);
+        throw new AppError(this.getPortConflictMessage(input.port, existingByPort.name), 409);
+      }
+
+      if (RESERVED_PORTS.includes(input.port)) {
+        throw new AppError(this.getPortConflictMessage(input.port), 409);
+      }
+
+      // Check if port is in use on the system by another process
+      try {
+        const { stdout } = await execAsync(
+          `ss -tlnH sport = :${input.port} 2>/dev/null || ss -ulnH sport = :${input.port} 2>/dev/null`
+        );
+        if (stdout.trim().length > 0) {
+          throw new AppError(this.getPortConflictMessage(input.port), 409);
+        }
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        logger.warn(`Could not check system port usage for port ${input.port}`);
       }
     }
 
