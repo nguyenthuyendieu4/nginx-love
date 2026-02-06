@@ -711,6 +711,7 @@ export class SSLService {
     pemCert: string,
     hostnames: string[]
   ): Promise<WildcardValidationResult> {
+    const checkpoint = new Date(); // single timestamp for all comparisons
     try {
       const inspection = await acmeService.inspectWildcardCoverage(pemCert);
 
@@ -748,7 +749,7 @@ export class SSLService {
 
       // Also verify the certificate has not expired
       const parsed = await acmeService.parseCertificate(pemCert);
-      if (parsed.validTo < new Date()) {
+      if (parsed.validTo < checkpoint) {
         issues.push(`Certificate expired on ${parsed.validTo.toISOString()}`);
       }
 
@@ -884,6 +885,7 @@ export class SSLService {
     clientIp: string,
     clientUa: string
   ): Promise<SSLCertificateWithDomain> {
+    const checkpoint = new Date(); // single timestamp for all time comparisons
     const { domainId, certificate: pemCert, privateKey: pemKey, chain: pemChain, issuer: suppliedIssuer, additionalDomainIds } = dto;
 
     // Resolve primary domain
@@ -939,7 +941,7 @@ export class SSLService {
     }
 
     // Reject expired certs
-    if (parsedCert.validTo < new Date()) {
+    if (parsedCert.validTo < checkpoint) {
       throw new Error(`Certificate expired on ${parsedCert.validTo.toISOString()}`);
     }
 
