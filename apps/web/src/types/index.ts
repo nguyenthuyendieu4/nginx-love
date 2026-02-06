@@ -189,12 +189,21 @@ export interface LogEntry {
 export interface NotificationChannel {
   id: string;
   name: string;
-  type: 'email' | 'telegram';
+  type: 'email' | 'telegram' | 'jira';
   enabled: boolean;
   config: {
     email?: string;
     chatId?: string;
     botToken?: string;
+    // Jira / JSM configuration
+    jiraType?: 'jira' | 'jsm';
+    baseUrl?: string;
+    apiToken?: string;
+    userEmail?: string;
+    projectKey?: string;
+    issueType?: string;
+    serviceDeskId?: string;
+    requestTypeId?: string;
   };
 }
 
