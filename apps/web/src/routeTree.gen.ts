@@ -120,6 +120,7 @@ const AuthAccessListsRoute = AuthAccessListsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/$catchall': typeof CatchallRoute
+  '/': typeof AuthIndexRoute
   '/login': typeof LoginRoute
   '/access-lists': typeof AuthAccessListsRoute
   '/account': typeof AuthAccountRoute
@@ -135,7 +136,6 @@ export interface FileRoutesByFullPath {
   '/performance': typeof AuthPerformanceRoute
   '/ssl': typeof AuthSslRoute
   '/users': typeof AuthUsersRoute
-  '/': typeof AuthIndexRoute
 }
 export interface FileRoutesByTo {
   '/$catchall': typeof CatchallRoute
@@ -181,6 +181,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/$catchall'
+    | '/'
     | '/login'
     | '/access-lists'
     | '/account'
@@ -196,7 +197,6 @@ export interface FileRouteTypes {
     | '/performance'
     | '/ssl'
     | '/users'
-    | '/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/$catchall'
@@ -256,7 +256,7 @@ declare module '@tanstack/react-router' {
     '/_auth': {
       id: '/_auth'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }

@@ -862,6 +862,8 @@ export class SSLService {
         status: 'valid',
         isWildcard: true,
         wildcardDomain: starPattern,
+        dnsProvider: dnsProvider,
+        dnsCredentials: dnsCredentials || undefined,
       };
       this.attachOptionalCertFields(record, parsedInfo);
 
@@ -1034,7 +1036,9 @@ export class SSLService {
         parsedInfo,
         wc.issuer,
         certStatus,
-        wc.wildcardDomain
+        wc.wildcardDomain,
+        wc.dnsProvider,
+        wc.dnsCredentials as Record<string, string> | null
       );
 
       return created;
@@ -1092,7 +1096,9 @@ export class SSLService {
         dest.id, dest.name,
         originCert.certificate, originCert.privateKey, originCert.chain,
         parsedInfo, originCert.issuer, currentStatus,
-        originCert.wildcardDomain!
+        originCert.wildcardDomain!,
+        originCert.dnsProvider,
+        originCert.dnsCredentials as Record<string, string> | null
       );
       createdCerts.push(newEntry);
     }
@@ -1115,7 +1121,9 @@ export class SSLService {
     parsedInfo: any,
     issuerName: string,
     certStatus: SSLStatus,
-    wcPattern: string
+    wcPattern: string,
+    dnsProvider?: string | null,
+    dnsCredentials?: Record<string, string> | null
   ): Promise<SSLCertificateWithDomain> {
     const dbRecord: Prisma.SSLCertificateCreateInput = {
       domain: { connect: { id: targetDomainId } },
@@ -1131,6 +1139,8 @@ export class SSLService {
       status: certStatus,
       isWildcard: true,
       wildcardDomain: wcPattern,
+      dnsProvider: dnsProvider || undefined,
+      dnsCredentials: dnsCredentials || undefined,
     };
     this.attachOptionalCertFields(dbRecord, parsedInfo);
 
