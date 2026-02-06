@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Card,
@@ -64,6 +64,7 @@ import {
 import type {
   AdGuardConfig,
   CloudflareConfig,
+  CloudflareDNSRecord,
   DnsProviderConfig,
   UnifiedDnsRecord,
   AdGuardRewrite,
@@ -527,7 +528,7 @@ function AdGuardTab({
   onDelete,
 }: {
   config: AdGuardConfig | null;
-  query: any;
+  query: { data?: AdGuardRewrite[]; isLoading: boolean; isFetching: boolean; refetch: () => void };
   searchQuery: string;
   onAdd: (rewrite: AdGuardRewrite) => void;
   onUpdate: (oldRewrite: AdGuardRewrite, newRewrite: AdGuardRewrite) => void;
@@ -696,7 +697,7 @@ function CloudflareTab({
   onDelete,
 }: {
   config: CloudflareConfig | null;
-  query: any;
+  query: { data?: CloudflareDNSRecord[]; isLoading: boolean; isFetching: boolean; refetch: () => void };
   searchQuery: string;
   onCreate: (record: { type: string; name: string; content: string; ttl?: number; proxied?: boolean; comment?: string }) => void;
   onUpdate: (recordId: string, record: { type?: string; name?: string; content?: string; ttl?: number; proxied?: boolean }) => void;
@@ -704,13 +705,13 @@ function CloudflareTab({
 }) {
   const { t } = useTranslation();
   const [showAdd, setShowAdd] = useState(false);
-  const [editRecord, setEditRecord] = useState<any>(null);
+  const [editRecord, setEditRecord] = useState<CloudflareDNSRecord | null>(null);
   const [form, setForm] = useState({ type: 'A', name: '', content: '', ttl: 1, proxied: false, comment: '' });
 
-  const records = query.data ?? [];
+  const records: CloudflareDNSRecord[] = query.data ?? [];
   const filtered = searchQuery
     ? records.filter(
-        (r: any) =>
+        (r: CloudflareDNSRecord) =>
           r.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           r.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           r.type?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -772,7 +773,7 @@ function CloudflareTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((record: any) => (
+              {filtered.map((record: CloudflareDNSRecord) => (
                 <TableRow key={record.id}>
                   <TableCell><Badge variant="secondary">{record.type}</Badge></TableCell>
                   <TableCell className="font-medium">{record.name}</TableCell>
@@ -855,12 +856,21 @@ function CloudflareTab({
 
 // ============ Cloudflare Record Form ============
 
+interface CloudflareFormData {
+  type: string;
+  name: string;
+  content: string;
+  ttl: number;
+  proxied: boolean;
+  comment: string;
+}
+
 function CloudflareRecordForm({
   form,
   setForm,
 }: {
-  form: { type: string; name: string; content: string; ttl: number; proxied: boolean; comment: string };
-  setForm: (form: any) => void;
+  form: CloudflareFormData;
+  setForm: (form: CloudflareFormData) => void;
 }) {
   const { t } = useTranslation();
   const dnsTypes = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV', 'CAA', 'PTR'];
@@ -1187,7 +1197,7 @@ function EditRecordDialog({
   const [cfForm, setCfForm] = useState({ type: 'A', name: '', content: '', ttl: 1, proxied: false, comment: '' });
 
   // Reset form when record changes
-  useMemo(() => {
+  useEffect(() => {
     if (record) {
       if (record.provider === 'adguard') {
         setAdguardForm({ domain: record.domain, answer: record.value });

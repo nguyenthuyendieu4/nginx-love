@@ -335,15 +335,18 @@ export class DnsManagementService {
    */
   private adguardToUnified(rewrite: AdGuardRewrite, index: number): UnifiedDnsRecord {
     // Determine record type based on the answer format
-    let type = 'A';
-    if (rewrite.answer.includes(':') && !rewrite.answer.includes('.')) {
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    const ipv6Regex = /^[0-9a-fA-F:]+$/;
+
+    let type = 'CNAME';
+    if (ipv4Regex.test(rewrite.answer)) {
+      type = 'A';
+    } else if (ipv6Regex.test(rewrite.answer) && rewrite.answer.includes(':')) {
       type = 'AAAA';
-    } else if (rewrite.answer.match(/^[a-zA-Z]/)) {
-      type = 'CNAME';
     }
 
     return {
-      id: `adguard-${index}-${Buffer.from(rewrite.domain + rewrite.answer).toString('base64url')}`,
+      id: `adguard-${index}-${Buffer.from(rewrite.domain + ':' + rewrite.answer).toString('base64url').substring(0, 32)}`,
       provider: 'adguard',
       domain: rewrite.domain,
       type,
