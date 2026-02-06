@@ -1,4 +1,4 @@
-import { CronExpressionParser } from 'cron-parser';
+import CronExpressionParser from 'cron-parser';
 import logger from '../../../utils/logger';
 import { backupRepository } from '../backup.repository';
 import { backupService } from '../backup.service';
