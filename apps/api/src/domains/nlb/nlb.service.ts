@@ -1,9 +1,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import logger from '../../utils/logger';
 import { PATHS } from '../../shared/constants/paths.constants';
+
+const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 import { NLBRepository } from './nlb.repository';
 import {
   CreateNLBInput,
@@ -15,8 +18,6 @@ import {
 } from './nlb.types';
 import { PaginationMeta } from '../../shared/types/common.types';
 import { AppError } from '../../middleware/errorHandler';
-
-const execAsync = promisify(exec);
 
 // Well-known ports reserved by the system/nginx that NLB must not use
 export const RESERVED_PORTS = [
@@ -47,8 +48,8 @@ export class NLBService {
 
   /**
    * Check if a port is currently in use on the system by another process.
-   * Uses `ss` to detect listening sockets. Ignores ports already owned by
-   * an existing NLB (identified via its database record).
+   * Uses `ss` via execFile to detect listening sockets (safe from command injection).
+   * Ignores ports already owned by an existing NLB (identified via its database record).
    */
   async isPortInUseOnSystem(port: number, excludeNLBId?: string): Promise<boolean> {
     // First, check against the reserved ports list
@@ -62,18 +63,24 @@ export class NLBService {
       return true;
     }
 
-    // Check if port is in use on the system by any process
+    // Check if port is in use on the system by any process using execFile (safe from injection)
+    const portStr = String(Math.floor(port));
     try {
-      const { stdout } = await execAsync(
-        `ss -tlnH sport = :${port} 2>/dev/null || ss -ulnH sport = :${port} 2>/dev/null`
-      );
+      const { stdout } = await execFileAsync('ss', ['-tlnH', 'sport', '=', `:${portStr}`]);
       if (stdout.trim().length > 0) {
-        // Port is in use on the system - but if it is owned by an existing NLB
-        // that we are updating, we can skip it (already handled above).
         return true;
       }
     } catch {
-      // ss command failed - fall through, not blocking
+      // TCP check failed or no results - try UDP
+    }
+
+    try {
+      const { stdout } = await execFileAsync('ss', ['-ulnH', 'sport', '=', `:${portStr}`]);
+      if (stdout.trim().length > 0) {
+        return true;
+      }
+    } catch {
+      // UDP check failed - fall through
       logger.warn(`Could not check system port usage for port ${port}`);
     }
 
@@ -134,21 +141,9 @@ export class NLBService {
       throw new AppError(this.getPortConflictMessage(input.port, existingByPort.name), 409);
     }
 
-    if (RESERVED_PORTS.includes(input.port)) {
+    const portInUse = await this.isPortInUseOnSystem(input.port);
+    if (portInUse) {
       throw new AppError(this.getPortConflictMessage(input.port), 409);
-    }
-
-    // Check if port is in use on the system by another process
-    try {
-      const { stdout } = await execAsync(
-        `ss -tlnH sport = :${input.port} 2>/dev/null || ss -ulnH sport = :${input.port} 2>/dev/null`
-      );
-      if (stdout.trim().length > 0) {
-        throw new AppError(this.getPortConflictMessage(input.port), 409);
-      }
-    } catch (error) {
-      if (error instanceof AppError) throw error;
-      logger.warn(`Could not check system port usage for port ${input.port}`);
     }
 
     // Create NLB in database
@@ -211,21 +206,9 @@ export class NLBService {
         throw new AppError(this.getPortConflictMessage(input.port, existingByPort.name), 409);
       }
 
-      if (RESERVED_PORTS.includes(input.port)) {
+      const portInUse = await this.isPortInUseOnSystem(input.port, id);
+      if (portInUse) {
         throw new AppError(this.getPortConflictMessage(input.port), 409);
-      }
-
-      // Check if port is in use on the system by another process
-      try {
-        const { stdout } = await execAsync(
-          `ss -tlnH sport = :${input.port} 2>/dev/null || ss -ulnH sport = :${input.port} 2>/dev/null`
-        );
-        if (stdout.trim().length > 0) {
-          throw new AppError(this.getPortConflictMessage(input.port), 409);
-        }
-      } catch (error) {
-        if (error instanceof AppError) throw error;
-        logger.warn(`Could not check system port usage for port ${input.port}`);
       }
     }
 
