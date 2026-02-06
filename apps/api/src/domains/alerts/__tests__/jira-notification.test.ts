@@ -62,7 +62,7 @@ describe('Jira Notification Service', () => {
 
       expect(result).toBe(true);
       expect(axios.post).toHaveBeenCalledWith(
-        'https://test.atlassian.net/rest/api/3/issue',
+        'https://test.atlassian.net/rest/api/2/issue',
         expect.objectContaining({
           fields: expect.objectContaining({
             project: { key: 'OPS' },
@@ -225,7 +225,7 @@ describe('Jira Notification Service', () => {
       await sendJiraNotification(config, 'Test', 'Message');
 
       expect(axios.post).toHaveBeenCalledWith(
-        'https://test.atlassian.net/rest/api/3/issue',
+        'https://test.atlassian.net/rest/api/2/issue',
         expect.any(Object),
         expect.any(Object)
       );

@@ -92,27 +92,6 @@ export async function sendEmailNotification(
 }
 
 /**
- * Build Jira issue description from alert information
- */
-function buildJiraDescription(message: string): object {
-  return {
-    type: 'doc',
-    version: 1,
-    content: [
-      {
-        type: 'paragraph',
-        content: [
-          {
-            type: 'text',
-            text: message
-          }
-        ]
-      }
-    ]
-  };
-}
-
-/**
  * Send Jira notification (create issue or JSM request)
  */
 export async function sendJiraNotification(
@@ -159,12 +138,12 @@ export async function sendJiraNotification(
         throw new Error('Jira configuration incomplete: projectKey is required');
       }
 
-      const url = `${baseUrl}/rest/api/3/issue`;
+      const url = `${baseUrl}/rest/api/2/issue`;
       const body = {
         fields: {
           project: { key: config.projectKey },
           summary: subject,
-          description: buildJiraDescription(message),
+          description: message,
           issuetype: { name: config.issueType || 'Task' }
         }
       };
