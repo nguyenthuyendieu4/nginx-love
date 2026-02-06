@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import logger from '../../utils/logger';
 import { sslRepository } from './ssl.repository';
@@ -847,7 +848,7 @@ export class SSLService {
       }
 
       // Assemble the database record
-      const record: Record<string, any> = {
+      const record: Prisma.SSLCertificateCreateInput = {
         domain: { connect: { id: domainId } },
         commonName: parsedInfo.commonName,
         sans: parsedInfo.sans,
@@ -949,7 +950,7 @@ export class SSLService {
     const computedStatus = this.calculateStatus(parsedCert.validTo);
 
     // Persist the primary certificate record
-    const primaryRecord: Record<string, any> = {
+    const primaryRecord: Prisma.SSLCertificateCreateInput = {
       domain: { connect: { id: domainId } },
       commonName: parsedCert.commonName,
       sans: parsedCert.sans,
@@ -1065,7 +1066,7 @@ export class SSLService {
     certStatus: SSLStatus,
     wcPattern: string
   ): Promise<SSLCertificateWithDomain> {
-    const dbRecord: Record<string, any> = {
+    const dbRecord: Prisma.SSLCertificateCreateInput = {
       domain: { connect: { id: targetDomainId } },
       commonName: parsedInfo.commonName,
       sans: parsedInfo.sans,
@@ -1093,7 +1094,7 @@ export class SSLService {
   /**
    * Copy optional parsed certificate metadata onto a DB record object.
    */
-  private attachOptionalCertFields(record: Record<string, any>, parsed: any): void {
+  private attachOptionalCertFields(record: Prisma.SSLCertificateCreateInput, parsed: any): void {
     if (parsed.subject) record.subject = parsed.subject;
     if (parsed.subjectDetails) record.subjectDetails = parsed.subjectDetails;
     if (parsed.issuerDetails) record.issuerDetails = parsed.issuerDetails;
