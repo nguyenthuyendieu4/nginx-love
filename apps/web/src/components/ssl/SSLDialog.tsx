@@ -23,7 +23,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Domain } from '@/types';
 import { toast } from 'sonner';
-import { useIssueAutoSSL, useUploadManualSSL, useDomains } from '@/queries';
+import { useIssueAutoSSL, useUploadManualSSL, useUploadWildcardSSL, useDomains } from '@/queries';
 
 interface SSLDialogProps {
   open: boolean;
@@ -33,7 +33,7 @@ interface SSLDialogProps {
 
 export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
   const { t } = useTranslation();
-  const [method, setMethod] = useState<'auto' | 'manual'>('auto');
+  const [method, setMethod] = useState<'auto' | 'manual' | 'wildcard'>('auto');
   const [formData, setFormData] = useState({
     domainId: '',
     email: '',
@@ -42,6 +42,8 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
     privateKey: '',
     chain: '',
   });
+  // Extra state for wildcard multi-domain selection
+  const [wcExtraDomainIds, setWcExtraDomainIds] = useState<string[]>([]);
 
   // Use TanStack Query to fetch domains
   const { data: domainsResponse, isLoading: domainsLoading, error: domainsError } = useDomains();
@@ -51,6 +53,14 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
 
   const issueAutoSSL = useIssueAutoSSL();
   const uploadManualSSL = useUploadManualSSL();
+  const uploadWildcardSSL = useUploadWildcardSSL();
+
+  // Toggle a domain ID in the wildcard extra-domains set
+  const toggleWcDomain = (domainId: string) => {
+    setWcExtraDomainIds(prev =>
+      prev.includes(domainId) ? prev.filter(id => id !== domainId) : [...prev, domainId]
+    );
+  };
 
   // Show error toast if domains fail to load
   useEffect(() => {
@@ -257,6 +267,15 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
           autoRenew: formData.autoRenew,
         });
         toast.success("SSL certificate issued successfully (ZeroSSL)");
+      } else if (method === 'wildcard') {
+        await uploadWildcardSSL.mutateAsync({
+          domainId: formData.domainId,
+          certificate: formData.certificate,
+          privateKey: formData.privateKey,
+          chain: formData.chain || undefined,
+          additionalDomainIds: wcExtraDomainIds.length > 0 ? wcExtraDomainIds : undefined,
+        });
+        toast.success('Wildcard SSL certificate uploaded and applied');
       } else {
         await uploadManualSSL.mutateAsync({
           domainId: formData.domainId,
@@ -279,6 +298,7 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
         privateKey: '',
         chain: '',
       });
+      setWcExtraDomainIds([]);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to add certificate');
     }
@@ -321,10 +341,11 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
             </Select>
           </div>
 
-          <Tabs value={method} onValueChange={(v) => setMethod(v as 'auto' | 'manual')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="auto">Auto (ZeroSSL/Let's Encrypt)</TabsTrigger>
+          <Tabs value={method} onValueChange={(v) => setMethod(v as 'auto' | 'manual' | 'wildcard')}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="auto">Auto (ZeroSSL)</TabsTrigger>
               <TabsTrigger value="manual">Manual Upload</TabsTrigger>
+              <TabsTrigger value="wildcard">Wildcard Upload</TabsTrigger>
             </TabsList>
 
             <TabsContent value="auto" className="space-y-4">
@@ -413,14 +434,88 @@ export function SSLDialog({ open, onOpenChange, onSuccess }: SSLDialogProps) {
                 />
               </div>
             </TabsContent>
+
+            <TabsContent value="wildcard" className="space-y-4">
+              <div className="rounded-lg bg-amber-500/10 p-4 border border-amber-500/20">
+                <h4 className="font-medium mb-2">Wildcard Certificate (*.domain.com)</h4>
+                <p className="text-sm text-muted-foreground">
+                  Upload a wildcard certificate that covers all subdomains under a parent domain.
+                  You can apply it to multiple domains at once. The server validates that each
+                  selected domain actually falls within the wildcard scope.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wcCert">Wildcard Certificate (PEM) *</Label>
+                <Textarea
+                  id="wcCert"
+                  placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                  value={formData.certificate}
+                  onChange={(e) => setFormData({ ...formData, certificate: e.target.value })}
+                  rows={5}
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[100px]"
+                  required={method === 'wildcard'}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wcKey">Private Key (PEM) *</Label>
+                <Textarea
+                  id="wcKey"
+                  placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+                  value={formData.privateKey}
+                  onChange={(e) => setFormData({ ...formData, privateKey: e.target.value })}
+                  rows={5}
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[100px]"
+                  required={method === 'wildcard'}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="wcChain">Chain (Optional)</Label>
+                <Textarea
+                  id="wcChain"
+                  placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                  value={formData.chain}
+                  onChange={(e) => setFormData({ ...formData, chain: e.target.value })}
+                  rows={3}
+                  className="font-mono text-xs break-all whitespace-pre-wrap max-h-[80px]"
+                />
+              </div>
+
+              {/* Multi-domain selector: pick extra domains to apply this wildcard to */}
+              {domainsWithoutSSL.length > 1 && formData.domainId && (
+                <div className="space-y-2">
+                  <Label>Also apply to these domains (optional)</Label>
+                  <div className="grid gap-2 max-h-[120px] overflow-y-auto rounded-md border p-2">
+                    {domainsWithoutSSL
+                      .filter(d => d.id !== formData.domainId)
+                      .map((d: Domain) => (
+                        <label key={d.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={wcExtraDomainIds.includes(d.id)}
+                            onChange={() => toggleWcDomain(d.id)}
+                            className="rounded border-gray-300"
+                          />
+                          {d.name}
+                        </label>
+                      ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Selected domains must be subdomains covered by the wildcard pattern.
+                  </p>
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={issueAutoSSL.isPending || uploadManualSSL.isPending}>
-              {issueAutoSSL.isPending || uploadManualSSL.isPending ? 'Adding...' : 'Add Certificate'}
+            <Button type="submit" disabled={issueAutoSSL.isPending || uploadManualSSL.isPending || uploadWildcardSSL.isPending}>
+              {(issueAutoSSL.isPending || uploadManualSSL.isPending || uploadWildcardSSL.isPending) ? 'Adding...' : 'Add Certificate'}
             </Button>
           </DialogFooter>
         </form>
