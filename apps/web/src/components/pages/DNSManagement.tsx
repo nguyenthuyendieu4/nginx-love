@@ -952,20 +952,20 @@ function ProviderConfigDialog({
   const [localConfigs, setLocalConfigs] = useState<DnsProviderConfig[]>([]);
   const [testedProvider, setTestedProvider] = useState<string | null>(null);
 
-  const defaultConfigs: DnsProviderConfig[] = [
-    { provider: 'adguard', enabled: false, adguard: { baseUrl: '', username: '', password: '' } },
-    { provider: 'cloudflare', enabled: false, cloudflare: { apiToken: '', zoneId: '' } },
-  ];
-
   // Initialize local state when dialog opens via open prop
   useEffect(() => {
     if (open) {
       setLocalConfigs(
-        configs.length > 0 ? [...configs] : defaultConfigs
+        configs.length > 0
+          ? [...configs]
+          : [
+              { provider: 'adguard', enabled: false, adguard: { baseUrl: '', username: '', password: '' } },
+              { provider: 'cloudflare', enabled: false, cloudflare: { apiToken: '', zoneId: '' } },
+            ]
       );
       setTestedProvider(null);
     }
-  }, [open]);
+  }, [open, configs]);
 
   const updateConfig = (index: number, updates: Partial<DnsProviderConfig>) => {
     const updated = [...localConfigs];
@@ -1073,7 +1073,7 @@ function ProviderConfigDialog({
                           onChange={(e) =>
                             updateConfig(index, { adguard: { ...cfg.adguard!, username: e.target.value } })
                           }
-                          placeholder="admin"
+                          placeholder="your-username"
                         />
                       </div>
                       <div className="grid gap-2">
