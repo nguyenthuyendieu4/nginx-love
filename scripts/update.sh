@@ -57,10 +57,6 @@ if ! systemctl list-unit-files | grep -q nginx-love-backend.service; then
     error "Backend service not found. Please run deploy.sh first."
 fi
 
-if ! systemctl list-unit-files | grep -q nginx-love-frontend.service; then
-    error "Frontend service not found. Please run deploy.sh first."
-fi
-
 # Check if database container exists
 if ! docker ps -a | grep -q "${DB_CONTAINER_NAME}"; then
     error "Database container '${DB_CONTAINER_NAME}' not found. Please run deploy.sh first."
@@ -106,12 +102,10 @@ else
     warn "Backend service was not running"
 fi
 
-# Stop frontend service
-if systemctl is-active --quiet nginx-love-frontend.service; then
+# Stop frontend service if exists (legacy - now served by nginx panel)
+if systemctl is-active --quiet nginx-love-frontend.service 2>/dev/null; then
     systemctl stop nginx-love-frontend.service
-    log "✓ Frontend service stopped"
-else
-    warn "Frontend service was not running"
+    log "✓ Legacy frontend service stopped"
 fi
 
 # Step 3: Update dependencies and build backend
@@ -197,13 +191,11 @@ if ! systemctl is-active --quiet nginx-love-backend.service; then
 fi
 log "✓ Backend service started"
 
-# Start frontend service
-systemctl start nginx-love-frontend.service || error "Failed to start frontend service"
-sleep 3
-if ! systemctl is-active --quiet nginx-love-frontend.service; then
-    error "Frontend service failed to start. Check logs: journalctl -u nginx-love-frontend.service"
+# Frontend is served by nginx panel - just reload nginx to pick up rebuilt files
+if systemctl is-active --quiet nginx; then
+    systemctl reload nginx || warn "Failed to reload nginx"
+    log "✓ Nginx reloaded (frontend panel updated)"
 fi
-log "✓ Frontend service started"
 
 # Update nginx configuration
 #backup existing nginx config
@@ -299,12 +291,12 @@ log "  • Database: Running in Docker container"
 log ""
 log "📝 Manage Services:"
 log "  Backend:    systemctl {start|stop|restart|status} nginx-love-backend"
-log "  Frontend:   systemctl {start|stop|restart|status} nginx-love-frontend"
+log "  Frontend:   Served by nginx panel (port 8080)"
 log "  Database:   docker {start|stop|restart} ${DB_CONTAINER_NAME}"
 log ""
 log "📊 View Logs:"
 log "  Backend:    tail -f /var/log/nginx-love-backend.log"
-log "  Frontend:   tail -f /var/log/nginx-love-frontend.log"
+log "  Panel:      tail -f /var/log/nginx/error.log"
 log "  Database:   docker logs -f ${DB_CONTAINER_NAME}"
 log "  Update:     tail -f ${LOG_FILE}"
 log ""
