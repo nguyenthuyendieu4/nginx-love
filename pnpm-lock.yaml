@@ -30,8 +30,8 @@ importers:
         specifier: ^2.8.6
         version: 2.8.6
       cron-parser:
-        specifier: ^5.5.0
-        version: 5.5.0
+        specifier: ^4.9.0
+        version: 4.9.0
       dotenv:
         specifier: ^17.2.4
         version: 17.2.4
@@ -4456,9 +4456,9 @@ packages:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
     dev: true
 
-  /cron-parser@5.5.0:
-    resolution: {integrity: sha512-oML4lKUXxizYswqmxuOCpgFS8BNUJpIu6k/2HVHyaL8Ynnf3wdf9tkns0yRdJLSIjkJ+b0DXHMZEHGpMwjnPww==}
-    engines: {node: '>=18'}
+  /cron-parser@4.9.0:
+    resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
+    engines: {node: '>=12.0.0'}
     dependencies:
       luxon: 3.7.2
     dev: false
