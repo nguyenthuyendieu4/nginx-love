@@ -9,11 +9,15 @@ import {
   SSLCertificateWithStatus,
   SSL_CONSTANTS,
   SSLStatus,
+  WildcardValidationResult,
 } from './ssl.types';
 import {
   IssueAutoSSLDto,
   UploadManualSSLDto,
   UpdateSSLDto,
+  IssueWildcardSSLDto,
+  UploadWildcardSSLDto,
+  ApplyWildcardSSLDto,
 } from './dto';
 
 /**
@@ -697,6 +701,515 @@ export class SSLService {
     logger.info(`SSL certificate renewed for ${cert.domain.name} by user ${userId}`);
 
     return updatedCert;
+  }
+
+  /**
+   * Validate whether a certificate is a wildcard and which domains it covers
+   */
+  async validateWildcardCertificate(
+    certificate: string,
+    domainNames: string[]
+  ): Promise<WildcardValidationResult> {
+    const errors: string[] = [];
+    const matchedDomains: string[] = [];
+    const unmatchedDomains: string[] = [];
+
+    try {
+      const wildcardInfo = await acmeService.validateWildcardCertificate(certificate);
+
+      if (!wildcardInfo.isWildcard) {
+        return {
+          isValid: false,
+          isWildcard: false,
+          wildcardDomain: null,
+          matchedDomains: [],
+          unmatchedDomains: domainNames,
+          errors: ['Certificate is not a wildcard certificate'],
+        };
+      }
+
+      // Check each domain against the wildcard pattern
+      for (const domainName of domainNames) {
+        if (this.matchesWildcard(wildcardInfo.wildcardDomain!, domainName) ||
+            wildcardInfo.coveredDomains.some(cd => this.matchesWildcard(cd, domainName))) {
+          matchedDomains.push(domainName);
+        } else {
+          unmatchedDomains.push(domainName);
+          errors.push(`Domain "${domainName}" is not covered by wildcard "${wildcardInfo.wildcardDomain}"`);
+        }
+      }
+
+      // Check expiry
+      const certInfo = await acmeService.parseCertificate(certificate);
+      const now = new Date();
+      if (certInfo.validTo < now) {
+        errors.push(`Certificate has expired on ${certInfo.validTo.toISOString()}`);
+      }
+
+      return {
+        isValid: unmatchedDomains.length === 0 && errors.length === 0,
+        isWildcard: true,
+        wildcardDomain: wildcardInfo.wildcardDomain,
+        matchedDomains,
+        unmatchedDomains,
+        errors,
+      };
+    } catch (error: any) {
+      return {
+        isValid: false,
+        isWildcard: false,
+        wildcardDomain: null,
+        matchedDomains: [],
+        unmatchedDomains: domainNames,
+        errors: [`Failed to validate certificate: ${error.message}`],
+      };
+    }
+  }
+
+  /**
+   * Check if a domain matches a wildcard pattern
+   */
+  private matchesWildcard(pattern: string, domain: string): boolean {
+    const p = pattern.toLowerCase();
+    const d = domain.toLowerCase();
+
+    // Exact match
+    if (p === d) return true;
+
+    // Wildcard match: *.example.com matches sub.example.com
+    if (p.startsWith('*.')) {
+      const baseDomain = p.slice(2); // Remove '*.'
+      // sub.example.com should match *.example.com
+      if (d === baseDomain) return true;
+      if (d.endsWith(`.${baseDomain}`)) {
+        // Ensure only one level of subdomain (standard wildcard behavior)
+        const prefix = d.slice(0, d.length - baseDomain.length - 1);
+        return !prefix.includes('.');
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Issue wildcard SSL certificate via ACME DNS-01 challenge
+   */
+  async issueWildcardCertificate(
+    dto: IssueWildcardSSLDto,
+    userId: string,
+    ip: string,
+    userAgent: string
+  ): Promise<SSLCertificateWithDomain> {
+    const { domainId, baseDomain, email, dnsProvider, dnsCredentials, autoRenew = true } = dto;
+
+    // Validate and sanitize email
+    const secureEmailAddress = this.secureEmail(email);
+
+    // Validate DNS provider
+    if (!SSL_CONSTANTS.SUPPORTED_DNS_PROVIDERS.includes(dnsProvider)) {
+      throw new Error(`Unsupported DNS provider: ${dnsProvider}. Supported: ${SSL_CONSTANTS.SUPPORTED_DNS_PROVIDERS.join(', ')}`);
+    }
+
+    // Check if domain exists
+    const domain = await prisma.domain.findUnique({
+      where: { id: domainId },
+    });
+
+    if (!domain) {
+      throw new Error('Domain not found');
+    }
+
+    // Check if certificate already exists for this domain
+    const existingCert = await sslRepository.findByDomainId(domainId);
+    if (existingCert) {
+      throw new Error('SSL certificate already exists for this domain');
+    }
+
+    const wildcardDomain = `*.${baseDomain}`;
+    logger.info(`Issuing wildcard SSL certificate ${wildcardDomain} for ${domain.name}`);
+
+    try {
+      // Issue wildcard certificate using DNS-01 challenge
+      const certFiles = await acmeService.issueWildcardCertificate({
+        baseDomain,
+        email: secureEmailAddress,
+        dnsProvider,
+        dnsCredentials,
+      });
+
+      // Parse certificate to get details
+      const certInfo = await acmeService.parseCertificate(certFiles.certificate);
+
+      // Validate it's actually a wildcard
+      const wildcardInfo = await acmeService.validateWildcardCertificate(certFiles.certificate);
+      if (!wildcardInfo.isWildcard) {
+        logger.warn('Issued certificate is not a wildcard certificate');
+      }
+
+      logger.info(`Wildcard SSL certificate issued: ${wildcardDomain}`);
+
+      // Create SSL certificate in database
+      const createData: any = {
+        domain: { connect: { id: domainId } },
+        commonName: certInfo.commonName,
+        sans: certInfo.sans,
+        issuer: certInfo.issuer,
+        certificate: certFiles.certificate,
+        privateKey: certFiles.privateKey,
+        chain: certFiles.chain,
+        validFrom: certInfo.validFrom,
+        validTo: certInfo.validTo,
+        autoRenew,
+        status: 'valid',
+        isWildcard: true,
+        wildcardDomain,
+      };
+
+      if (certInfo.subject) createData.subject = certInfo.subject;
+      if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
+      if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
+      if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+
+      const sslCertificate = await sslRepository.create(createData);
+
+      // Update domain SSL expiry
+      await sslRepository.updateDomainSSLExpiry(domainId, sslCertificate.validTo);
+
+      // Log activity
+      await this.logActivity(
+        userId,
+        `Issued wildcard SSL certificate ${wildcardDomain} for ${domain.name}`,
+        ip,
+        userAgent,
+        true
+      );
+
+      return sslCertificate;
+    } catch (error: any) {
+      logger.error(`Failed to issue wildcard SSL for ${domain.name}:`, error);
+
+      await this.logActivity(
+        userId,
+        `Failed to issue wildcard SSL for ${domain.name}: ${error.message}`,
+        ip,
+        userAgent,
+        false
+      );
+
+      throw new Error(`Failed to issue wildcard certificate: ${error.message}`);
+    }
+  }
+
+  /**
+   * Upload manual wildcard SSL certificate
+   */
+  async uploadWildcardCertificate(
+    dto: UploadWildcardSSLDto,
+    userId: string,
+    ip: string,
+    userAgent: string
+  ): Promise<SSLCertificateWithDomain> {
+    const { domainId, certificate, privateKey, chain, issuer, additionalDomainIds } = dto;
+
+    // Check if primary domain exists
+    const domain = await prisma.domain.findUnique({
+      where: { id: domainId },
+    });
+
+    if (!domain) {
+      throw new Error('Domain not found');
+    }
+
+    // Check if certificate already exists for primary domain
+    const existingCert = await sslRepository.findByDomainId(domainId);
+    if (existingCert) {
+      throw new Error('SSL certificate already exists for this domain. Use update endpoint instead.');
+    }
+
+    // Parse and validate the certificate
+    let certInfo;
+    try {
+      certInfo = await acmeService.parseCertificate(certificate);
+    } catch (error: any) {
+      throw new Error(`Invalid certificate format: ${error.message}`);
+    }
+
+    // Validate it's a wildcard certificate
+    const wildcardInfo = await acmeService.validateWildcardCertificate(certificate);
+    if (!wildcardInfo.isWildcard) {
+      throw new Error('Certificate is not a wildcard certificate. Use the standard upload endpoint for regular certificates.');
+    }
+
+    // Validate private key matches certificate
+    try {
+      const isValidKeyPair = await acmeService.validateKeyPair(certificate, privateKey);
+      if (!isValidKeyPair) {
+        throw new Error('Private key does not match the certificate.');
+      }
+    } catch (error: any) {
+      if (error.message.includes('does not match')) {
+        throw error;
+      }
+      logger.warn('Key pair validation could not be completed:', error.message);
+    }
+
+    // Validate that primary domain is covered by the wildcard
+    const allDomainNames = [domain.name];
+
+    // Collect additional domain names if provided
+    const additionalDomains: Array<{ id: string; name: string }> = [];
+    if (additionalDomainIds && additionalDomainIds.length > 0) {
+      for (const additionalDomainId of additionalDomainIds) {
+        const additionalDomain = await prisma.domain.findUnique({
+          where: { id: additionalDomainId },
+        });
+        if (!additionalDomain) {
+          throw new Error(`Additional domain not found: ${additionalDomainId}`);
+        }
+        additionalDomains.push({ id: additionalDomain.id, name: additionalDomain.name });
+        allDomainNames.push(additionalDomain.name);
+      }
+    }
+
+    // Validate all domains match the wildcard
+    const validation = await this.validateWildcardCertificate(certificate, allDomainNames);
+    if (validation.unmatchedDomains.length > 0) {
+      throw new Error(
+        `Wildcard certificate "${wildcardInfo.wildcardDomain}" does not cover: ${validation.unmatchedDomains.join(', ')}. ` +
+        `Certificate covers: ${wildcardInfo.coveredDomains.join(', ')}`
+      );
+    }
+
+    // Validate certificate is not expired
+    const now = new Date();
+    if (certInfo.validTo < now) {
+      throw new Error(`Certificate has expired on ${certInfo.validTo.toISOString()}`);
+    }
+
+    const finalIssuer = issuer || certInfo.issuer || SSL_CONSTANTS.MANUAL_ISSUER;
+    const status = this.calculateStatus(certInfo.validTo);
+
+    // Create primary SSL certificate in database
+    const createData: any = {
+      domain: { connect: { id: domainId } },
+      commonName: certInfo.commonName,
+      sans: certInfo.sans,
+      issuer: finalIssuer,
+      certificate,
+      privateKey,
+      chain: chain || null,
+      validFrom: certInfo.validFrom,
+      validTo: certInfo.validTo,
+      autoRenew: false,
+      status,
+      isWildcard: true,
+      wildcardDomain: wildcardInfo.wildcardDomain,
+    };
+
+    if (certInfo.subject) createData.subject = certInfo.subject;
+    if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
+    if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
+    if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+
+    const cert = await sslRepository.create(createData);
+
+    // Write certificate files for primary domain
+    try {
+      await fs.mkdir(SSL_CONSTANTS.CERTS_PATH, { recursive: true });
+      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domain.name}.crt`), certificate);
+      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domain.name}.key`), privateKey);
+      if (chain) {
+        await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domain.name}.chain.crt`), chain);
+      }
+    } catch (error) {
+      logger.error(`Failed to write wildcard certificate files for ${domain.name}:`, error);
+    }
+
+    // Update primary domain SSL expiry
+    await sslRepository.updateDomainSSLExpiry(domainId, certInfo.validTo);
+
+    // Apply to additional domains
+    for (const additionalDomain of additionalDomains) {
+      try {
+        await this.applyWildcardCertToDomain(
+          additionalDomain.id,
+          additionalDomain.name,
+          certificate,
+          privateKey,
+          chain || null,
+          certInfo,
+          finalIssuer,
+          status,
+          wildcardInfo.wildcardDomain!
+        );
+      } catch (error: any) {
+        logger.warn(`Failed to apply wildcard cert to ${additionalDomain.name}: ${error.message}`);
+      }
+    }
+
+    // Log activity
+    const domainNames = allDomainNames.join(', ');
+    await this.logActivity(
+      userId,
+      `Uploaded wildcard SSL certificate for ${domainNames}`,
+      ip,
+      userAgent,
+      true
+    );
+
+    logger.info(`Wildcard SSL certificate uploaded for ${domainNames} by user ${userId}`);
+
+    return cert;
+  }
+
+  /**
+   * Apply an existing wildcard certificate to additional domains
+   */
+  async applyWildcardToDomainsById(
+    dto: ApplyWildcardSSLDto,
+    userId: string,
+    ip: string,
+    userAgent: string
+  ): Promise<SSLCertificateWithDomain[]> {
+    const { certificateId, targetDomainIds } = dto;
+
+    // Get the source wildcard certificate
+    const sourceCert = await sslRepository.findById(certificateId);
+    if (!sourceCert) {
+      throw new Error('SSL certificate not found');
+    }
+
+    if (!sourceCert.isWildcard) {
+      throw new Error('Certificate is not a wildcard certificate');
+    }
+
+    // Validate target domains
+    const targetDomains: Array<{ id: string; name: string }> = [];
+    for (const targetDomainId of targetDomainIds) {
+      const domain = await prisma.domain.findUnique({
+        where: { id: targetDomainId },
+      });
+      if (!domain) {
+        throw new Error(`Domain not found: ${targetDomainId}`);
+      }
+      targetDomains.push({ id: domain.id, name: domain.name });
+    }
+
+    // Validate all target domains match the wildcard pattern
+    const domainNames = targetDomains.map(d => d.name);
+    const validation = await this.validateWildcardCertificate(sourceCert.certificate, domainNames);
+    if (validation.unmatchedDomains.length > 0) {
+      throw new Error(
+        `Wildcard certificate does not cover: ${validation.unmatchedDomains.join(', ')}. ` +
+        `Wildcard pattern: ${sourceCert.wildcardDomain}`
+      );
+    }
+
+    const status = this.calculateStatus(sourceCert.validTo);
+    const results: SSLCertificateWithDomain[] = [];
+
+    for (const target of targetDomains) {
+      try {
+        // Check if cert already exists for this domain
+        const existingCert = await sslRepository.findByDomainId(target.id);
+        if (existingCert) {
+          logger.warn(`SSL certificate already exists for ${target.name}, skipping`);
+          continue;
+        }
+
+        const certInfo = await acmeService.parseCertificate(sourceCert.certificate);
+        const result = await this.applyWildcardCertToDomain(
+          target.id,
+          target.name,
+          sourceCert.certificate,
+          sourceCert.privateKey,
+          sourceCert.chain,
+          certInfo,
+          sourceCert.issuer,
+          status,
+          sourceCert.wildcardDomain!
+        );
+        results.push(result);
+      } catch (error: any) {
+        logger.error(`Failed to apply wildcard cert to ${target.name}: ${error.message}`);
+        throw new Error(`Failed to apply certificate to ${target.name}: ${error.message}`);
+      }
+    }
+
+    // Log activity
+    const appliedNames = results.map(r => r.domain.name).join(', ');
+    await this.logActivity(
+      userId,
+      `Applied wildcard SSL certificate to domains: ${appliedNames}`,
+      ip,
+      userAgent,
+      true
+    );
+
+    return results;
+  }
+
+  /**
+   * Helper: Apply wildcard certificate data to a specific domain
+   */
+  private async applyWildcardCertToDomain(
+    domainId: string,
+    domainName: string,
+    certificate: string,
+    privateKey: string,
+    chain: string | null,
+    certInfo: any,
+    issuer: string,
+    status: SSLStatus,
+    wildcardDomain: string
+  ): Promise<SSLCertificateWithDomain> {
+    const createData: any = {
+      domain: { connect: { id: domainId } },
+      commonName: certInfo.commonName,
+      sans: certInfo.sans,
+      issuer,
+      certificate,
+      privateKey,
+      chain: chain || null,
+      validFrom: certInfo.validFrom,
+      validTo: certInfo.validTo,
+      autoRenew: false,
+      status,
+      isWildcard: true,
+      wildcardDomain,
+    };
+
+    if (certInfo.subject) createData.subject = certInfo.subject;
+    if (certInfo.subjectDetails) createData.subjectDetails = certInfo.subjectDetails;
+    if (certInfo.issuerDetails) createData.issuerDetails = certInfo.issuerDetails;
+    if (certInfo.serialNumber) createData.serialNumber = certInfo.serialNumber;
+
+    const newCert = await sslRepository.create(createData);
+
+    // Write certificate files
+    try {
+      await fs.mkdir(SSL_CONSTANTS.CERTS_PATH, { recursive: true });
+      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domainName}.crt`), certificate);
+      await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domainName}.key`), privateKey);
+      if (chain) {
+        await fs.writeFile(path.join(SSL_CONSTANTS.CERTS_PATH, `${domainName}.chain.crt`), chain);
+      }
+    } catch (error) {
+      logger.error(`Failed to write certificate files for ${domainName}:`, error);
+    }
+
+    // Update domain SSL expiry
+    await sslRepository.updateDomainSSLExpiry(domainId, certInfo.validTo);
+
+    logger.info(`Wildcard certificate applied to ${domainName}`);
+    return newCert;
+  }
+
+  /**
+   * Get all wildcard certificates
+   */
+  async getWildcardCertificates(): Promise<SSLCertificateWithDomain[]> {
+    return sslRepository.findWildcardCertificates();
   }
 
   /**

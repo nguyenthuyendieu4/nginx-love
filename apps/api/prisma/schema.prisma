@@ -262,6 +262,10 @@ model SSLCertificate {
   issuerDetails  Json? // { commonName, organization, country }
   serialNumber   String? // Certificate serial number
 
+  // Wildcard SSL support
+  isWildcard     Boolean @default(false) // Whether this is a wildcard certificate
+  wildcardDomain String? // The wildcard pattern (e.g., "*.example.com")
+
   validFrom DateTime
   validTo   DateTime
   autoRenew Boolean   @default(true)
@@ -272,6 +276,7 @@ model SSLCertificate {
 
   @@index([domainId])
   @@index([validTo])
+  @@index([isWildcard])
   @@map("ssl_certificates")
 }
 

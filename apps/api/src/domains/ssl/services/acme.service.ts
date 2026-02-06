@@ -86,6 +86,180 @@ export class AcmeService {
   }
 
   /**
+   * Issue wildcard certificate using acme.sh with DNS-01 challenge
+   * Wildcard certificates require DNS validation (cannot use HTTP-01)
+   */
+  async issueWildcardCertificate(options: {
+    baseDomain: string;
+    email?: string;
+    dnsProvider: string;
+    dnsCredentials?: Record<string, string>;
+  }): Promise<CertificateFiles> {
+    try {
+      const { baseDomain, email, dnsProvider, dnsCredentials } = options;
+
+      // Check if acme.sh is installed
+      const installed = await this.isAcmeInstalled();
+      if (!installed) {
+        await this.installAcme(email);
+      }
+
+      const wildcardDomain = `*.${baseDomain}`;
+      logger.info(`Issuing wildcard certificate for ${wildcardDomain} using DNS-01 challenge`);
+
+      const homeDir = process.env.HOME || '/root';
+      const acmeScript = path.join(homeDir, '.acme.sh', 'acme.sh');
+
+      // Set DNS credentials as environment variables if provided
+      const envVars: Record<string, string> = { ...process.env } as Record<string, string>;
+      if (dnsCredentials) {
+        for (const [key, value] of Object.entries(dnsCredentials)) {
+          envVars[this.sanitizeInput(key)] = this.sanitizeInput(value);
+        }
+      }
+
+      // Build wildcard issuance command with DNS-01 challenge
+      let issueCmd = `${acmeScript} --issue`;
+
+      // Set default CA
+      const caServer = this.defaultCA;
+      issueCmd += ` --server ${caServer}`;
+      logger.info(`Using CA server: ${caServer}`);
+
+      // Add both the wildcard domain and the base domain
+      issueCmd += ` -d ${this.sanitizeInput(wildcardDomain)}`;
+      issueCmd += ` -d ${this.sanitizeInput(baseDomain)}`;
+
+      // DNS-01 challenge (required for wildcards)
+      issueCmd += ` --dns ${this.sanitizeInput(dnsProvider)}`;
+
+      // Add email if provided
+      if (email) {
+        if (!this.validateEmail(email)) {
+          throw new Error('Invalid email format');
+        }
+        issueCmd += ` --accountemail ${this.sanitizeInput(email)}`;
+      }
+
+      // Force issue
+      issueCmd += ` --force`;
+
+      const { stdout, stderr } = await execAsync(issueCmd, {
+        env: envVars,
+      });
+      logger.info(`acme.sh wildcard output: ${stdout}`);
+
+      if (stderr) {
+        logger.warn(`acme.sh wildcard stderr: ${stderr}`);
+      }
+
+      // Get certificate files
+      const baseDir = path.join(homeDir, '.acme.sh');
+      let certDir = path.join(baseDir, wildcardDomain);
+
+      // Check if ECC directory exists
+      const eccDir = path.join(baseDir, `${wildcardDomain}_ecc`);
+      if (fs.existsSync(eccDir)) {
+        certDir = eccDir;
+      }
+
+      // acme.sh may use the base domain name for the directory
+      if (!fs.existsSync(certDir)) {
+        certDir = path.join(baseDir, baseDomain);
+        const baseDomainEccDir = path.join(baseDir, `${baseDomain}_ecc`);
+        if (fs.existsSync(baseDomainEccDir)) {
+          certDir = baseDomainEccDir;
+        }
+      }
+
+      const certFileName = `${wildcardDomain}.cer`;
+      const keyFileName = `${wildcardDomain}.key`;
+
+      // Try wildcard filenames first, fallback to base domain
+      let certificateFile = path.join(certDir, certFileName);
+      let keyFile = path.join(certDir, keyFileName);
+
+      if (!fs.existsSync(certificateFile)) {
+        certificateFile = path.join(certDir, `${baseDomain}.cer`);
+        keyFile = path.join(certDir, `${baseDomain}.key`);
+      }
+
+      const caFile = path.join(certDir, 'ca.cer');
+      const fullchainFile = path.join(certDir, 'fullchain.cer');
+
+      // Read certificate files
+      const certificate = await fs.promises.readFile(certificateFile, 'utf8');
+      const privateKey = await fs.promises.readFile(keyFile, 'utf8');
+      const chain = await fs.promises.readFile(caFile, 'utf8');
+      const fullchain = await fs.promises.readFile(fullchainFile, 'utf8');
+
+      // Install certificate to nginx directory
+      const nginxSslDir = '/etc/nginx/ssl';
+      if (!fs.existsSync(nginxSslDir)) {
+        await fs.promises.mkdir(nginxSslDir, { recursive: true });
+      }
+
+      const nginxCertFile = path.join(nginxSslDir, `wildcard.${baseDomain}.crt`);
+      const nginxKeyFile = path.join(nginxSslDir, `wildcard.${baseDomain}.key`);
+      const nginxChainFile = path.join(nginxSslDir, `wildcard.${baseDomain}.chain.crt`);
+
+      await fs.promises.writeFile(nginxCertFile, fullchain);
+      await fs.promises.writeFile(nginxKeyFile, privateKey);
+      await fs.promises.writeFile(nginxChainFile, chain);
+
+      logger.info(`Wildcard certificate installed to ${nginxSslDir}`);
+
+      return {
+        certificate,
+        privateKey,
+        chain,
+        fullchain,
+      };
+    } catch (error: any) {
+      logger.error('Failed to issue wildcard certificate:', error);
+      throw new Error(`Failed to issue wildcard certificate: ${error.message}`);
+    }
+  }
+
+  /**
+   * Validate that a certificate is a wildcard and matches the expected pattern
+   */
+  async validateWildcardCertificate(certContent: string): Promise<{
+    isWildcard: boolean;
+    wildcardDomain: string | null;
+    coveredDomains: string[];
+  }> {
+    const certInfo = await this.parseCertificate(certContent);
+
+    let isWildcard = false;
+    let wildcardDomain: string | null = null;
+    const coveredDomains: string[] = [];
+
+    // Check CN for wildcard
+    if (certInfo.commonName.startsWith('*.')) {
+      isWildcard = true;
+      wildcardDomain = certInfo.commonName;
+    }
+
+    // Check SANs for wildcard
+    for (const san of certInfo.sans) {
+      if (san.startsWith('*.')) {
+        isWildcard = true;
+        if (!wildcardDomain) {
+          wildcardDomain = san;
+        }
+      }
+      coveredDomains.push(san);
+    }
+
+    if (!coveredDomains.includes(certInfo.commonName)) {
+      coveredDomains.push(certInfo.commonName);
+    }
+
+    return { isWildcard, wildcardDomain, coveredDomains };
+  }
+
+  /**
    * Issue Let's Encrypt certificate using acme.sh with ZeroSSL as default CA
    */
   async issueCertificate(options: AcmeOptions): Promise<CertificateFiles> {

@@ -3,7 +3,7 @@ import { AuthRequest } from '../../middleware/auth';
 import logger from '../../utils/logger';
 import { validationResult } from 'express-validator';
 import { sslService } from './ssl.service';
-import { IssueAutoSSLDto, UploadManualSSLDto, UpdateSSLDto } from './dto';
+import { IssueAutoSSLDto, UploadManualSSLDto, UpdateSSLDto, IssueWildcardSSLDto, UploadWildcardSSLDto, ApplyWildcardSSLDto } from './dto';
 import { acmeService } from './services/acme.service';
 
 /**
@@ -348,6 +348,206 @@ export const renewSSLCertificate = async (req: AuthRequest, res: Response): Prom
     }
   } catch (error) {
     logger.error('Renew SSL certificate error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
+};
+
+/**
+ * Issue wildcard SSL certificate via ACME DNS-01 challenge
+ */
+export const issueWildcardSSL = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+      return;
+    }
+
+    const dto: IssueWildcardSSLDto = {
+      domainId: req.body.domainId,
+      baseDomain: req.body.baseDomain,
+      email: req.body.email,
+      dnsProvider: req.body.dnsProvider,
+      dnsCredentials: req.body.dnsCredentials,
+      autoRenew: req.body.autoRenew ?? true,
+    };
+
+    try {
+      const sslCertificate = await sslService.issueWildcardCertificate(
+        dto,
+        req.user!.userId,
+        req.ip || 'unknown',
+        req.headers['user-agent'] || 'unknown'
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Wildcard SSL certificate issued successfully',
+        data: sslCertificate,
+      });
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ success: false, message: error.message });
+      } else if (error.message.includes('already exists') || error.message.includes('Unsupported DNS')) {
+        res.status(400).json({ success: false, message: error.message });
+      } else {
+        res.status(500).json({ success: false, message: error.message });
+      }
+    }
+  } catch (error) {
+    logger.error('Issue wildcard SSL error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * Upload manual wildcard SSL certificate
+ */
+export const uploadWildcardSSL = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+      return;
+    }
+
+    const dto: UploadWildcardSSLDto = {
+      domainId: req.body.domainId,
+      certificate: req.body.certificate,
+      privateKey: req.body.privateKey,
+      chain: req.body.chain,
+      issuer: req.body.issuer,
+      additionalDomainIds: req.body.additionalDomainIds,
+    };
+
+    try {
+      const cert = await sslService.uploadWildcardCertificate(
+        dto,
+        req.user!.userId,
+        req.ip || 'unknown',
+        req.headers['user-agent'] || 'unknown'
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Wildcard SSL certificate uploaded successfully',
+        data: cert,
+      });
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ success: false, message: error.message });
+      } else if (error.message.includes('already exists') || error.message.includes('not a wildcard') || error.message.includes('does not cover')) {
+        res.status(400).json({ success: false, message: error.message });
+      } else {
+        res.status(500).json({ success: false, message: error.message });
+      }
+    }
+  } catch (error) {
+    logger.error('Upload wildcard SSL error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * Apply wildcard SSL certificate to additional domains
+ */
+export const applyWildcardSSL = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+      return;
+    }
+
+    const dto: ApplyWildcardSSLDto = {
+      certificateId: req.body.certificateId,
+      targetDomainIds: req.body.targetDomainIds,
+    };
+
+    try {
+      const results = await sslService.applyWildcardToDomainsById(
+        dto,
+        req.user!.userId,
+        req.ip || 'unknown',
+        req.headers['user-agent'] || 'unknown'
+      );
+
+      res.status(201).json({
+        success: true,
+        message: `Wildcard SSL certificate applied to ${results.length} domain(s)`,
+        data: results,
+      });
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({ success: false, message: error.message });
+      } else if (error.message.includes('not a wildcard') || error.message.includes('does not cover')) {
+        res.status(400).json({ success: false, message: error.message });
+      } else {
+        res.status(500).json({ success: false, message: error.message });
+      }
+    }
+  } catch (error) {
+    logger.error('Apply wildcard SSL error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};
+
+/**
+ * Validate wildcard SSL certificate against domains
+ */
+export const validateWildcardSSL = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+      return;
+    }
+
+    const { certificate, domainNames } = req.body;
+
+    const validation = await sslService.validateWildcardCertificate(certificate, domainNames);
+
+    res.json({
+      success: true,
+      data: validation,
+    });
+  } catch (error: any) {
+    logger.error('Validate wildcard SSL error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error',
+    });
+  }
+};
+
+/**
+ * Get all wildcard SSL certificates
+ */
+export const getWildcardCertificates = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const certificates = await sslService.getWildcardCertificates();
+
+    res.json({
+      success: true,
+      data: certificates,
+    });
+  } catch (error) {
+    logger.error('Get wildcard certificates error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
