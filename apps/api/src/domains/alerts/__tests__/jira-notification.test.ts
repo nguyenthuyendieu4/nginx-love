@@ -3,7 +3,7 @@
  * Tests for Jira Data Center / Server integration using PAT (Bearer auth)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock axios before importing the module
 vi.mock('axios', () => ({
