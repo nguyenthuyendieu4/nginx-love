@@ -361,6 +361,7 @@ model InstallationStatus {
 enum NotificationChannelType {
   email
   telegram
+  jira
 }
 
 enum AlertSeverity {
