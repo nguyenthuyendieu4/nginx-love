@@ -1,4 +1,4 @@
-import parser from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 import logger from '../../../utils/logger';
 import { backupRepository } from '../backup.repository';
 import { backupService } from '../backup.service';
@@ -17,7 +17,7 @@ class BackupSchedulerService {
    */
   calculateNextRun(cronExpression: string, baseDate?: Date): Date {
     try {
-      const interval = parser.parseExpression(cronExpression, {
+      const interval = CronExpressionParser.parse(cronExpression, {
         currentDate: baseDate || new Date(),
         tz: 'UTC'
       });
