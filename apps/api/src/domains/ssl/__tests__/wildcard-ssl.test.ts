@@ -234,3 +234,56 @@ describe('DNS provider validation', () => {
     expect(RECOGNIZED_PLUGINS).not.toContain('');
   });
 });
+
+// ----------------------------------------------------------------
+describe('Wildcard auto-detection for SSL toggle', () => {
+  // Simulates the logic in findAndApplyWildcardForDomain:
+  // given a set of wildcard patterns, find which one covers a target domain.
+  function findMatchingWildcard(
+    wildcardPatterns: string[],
+    targetDomain: string
+  ): string | null {
+    for (const pattern of wildcardPatterns) {
+      if (hostnameMatchesGlob(pattern, targetDomain)) {
+        return pattern;
+      }
+    }
+    return null;
+  }
+
+  it('detects a matching wildcard for a subdomain', () => {
+    const patterns = ['*.example.com', '*.other.org'];
+    expect(findMatchingWildcard(patterns, 'api.example.com')).toBe('*.example.com');
+  });
+
+  it('detects a matching wildcard for the bare parent domain', () => {
+    const patterns = ['*.example.com'];
+    expect(findMatchingWildcard(patterns, 'example.com')).toBe('*.example.com');
+  });
+
+  it('returns null when no wildcard matches', () => {
+    const patterns = ['*.example.com', '*.other.org'];
+    expect(findMatchingWildcard(patterns, 'unrelated.net')).toBeNull();
+  });
+
+  it('returns null for an empty wildcard list', () => {
+    expect(findMatchingWildcard([], 'anything.example.com')).toBeNull();
+  });
+
+  it('picks the first match when multiple wildcards could apply', () => {
+    const patterns = ['*.example.com', '*.example.com']; // duplicate
+    expect(findMatchingWildcard(patterns, 'sub.example.com')).toBe('*.example.com');
+  });
+
+  it('does not match multi-depth subdomains', () => {
+    const patterns = ['*.example.com'];
+    expect(findMatchingWildcard(patterns, 'a.b.example.com')).toBeNull();
+  });
+
+  it('matches across different wildcard zones correctly', () => {
+    const patterns = ['*.zone-a.com', '*.zone-b.com'];
+    expect(findMatchingWildcard(patterns, 'app.zone-b.com')).toBe('*.zone-b.com');
+    expect(findMatchingWildcard(patterns, 'app.zone-a.com')).toBe('*.zone-a.com');
+    expect(findMatchingWildcard(patterns, 'app.zone-c.com')).toBeNull();
+  });
+});

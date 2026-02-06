@@ -994,6 +994,57 @@ export class SSLService {
   }
 
   /**
+   * Scan all stored wildcard certs and, if one covers the given domain,
+   * automatically replicate it to that domain. Called during SSL toggle
+   * so users don't need to manually apply wildcard certs one by one.
+   *
+   * Returns the newly created cert record, or null if no wildcard matched.
+   */
+  async findAndApplyWildcardForDomain(
+    domainId: string,
+    domainName: string
+  ): Promise<SSLCertificateWithDomain | null> {
+    // Already has a cert — nothing to do
+    const existingCert = await sslRepository.findByDomainId(domainId);
+    if (existingCert) return null;
+
+    // Fetch every wildcard cert currently in the system
+    const allWildcards = await sslRepository.findWildcardCertificates();
+    if (allWildcards.length === 0) return null;
+
+    // Walk through them looking for a pattern that covers this domain
+    for (const wc of allWildcards) {
+      if (!wc.wildcardDomain) continue;
+      if (!this.hostnameMatchesGlob(wc.wildcardDomain, domainName)) continue;
+
+      // Found a matching wildcard — replicate it to the target domain
+      logger.info(
+        `[WildcardSSL] Auto-applying wildcard cert "${wc.wildcardDomain}" to ${domainName}`
+      );
+
+      const parsedInfo = await acmeService.parseCertificate(wc.certificate);
+      const certStatus = this.calculateStatus(wc.validTo);
+
+      const created = await this.replicateWildcardToDomain(
+        domainId,
+        domainName,
+        wc.certificate,
+        wc.privateKey,
+        wc.chain,
+        parsedInfo,
+        wc.issuer,
+        certStatus,
+        wc.wildcardDomain
+      );
+
+      return created;
+    }
+
+    // No wildcard cert matched this domain
+    return null;
+  }
+
+  /**
    * Spread an existing wildcard cert onto new domain entries.
    */
   async spreadWildcardToDomains(
