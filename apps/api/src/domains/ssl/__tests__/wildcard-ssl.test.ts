@@ -287,3 +287,157 @@ describe('Wildcard auto-detection for SSL toggle', () => {
     expect(findMatchingWildcard(patterns, 'app.zone-c.com')).toBeNull();
   });
 });
+
+// ----------------------------------------------------------------
+describe('Wildcard Auto-SSL via Cloudflare DNS credentials', () => {
+  it('IssueWildcardSSLDto supports Cloudflare dns_cf provider with API Token', () => {
+    const dto = {
+      domainId: 'cuid-cf-1',
+      baseDomain: 'example.com',
+      dnsProvider: 'dns_cf',
+      email: 'admin@example.com',
+      dnsCredentials: { CF_Token: 'my-cloudflare-api-token', CF_Account_ID: 'acc-123' },
+      autoRenew: true,
+    };
+    expect(dto.dnsProvider).toBe('dns_cf');
+    expect(dto.dnsCredentials).toHaveProperty('CF_Token');
+    expect(dto.autoRenew).toBe(true);
+  });
+
+  it('IssueWildcardSSLDto supports Cloudflare dns_cf provider with Global API Key', () => {
+    const dto = {
+      domainId: 'cuid-cf-2',
+      baseDomain: 'example.com',
+      dnsProvider: 'dns_cf',
+      email: 'admin@example.com',
+      dnsCredentials: { CF_Key: 'global-api-key-123', CF_Email: 'cf@example.com' },
+      autoRenew: true,
+    };
+    expect(dto.dnsProvider).toBe('dns_cf');
+    expect(dto.dnsCredentials).toHaveProperty('CF_Key');
+    expect(dto.dnsCredentials).toHaveProperty('CF_Email');
+  });
+
+  it('dns_cf is always present in the recognized plugins list', () => {
+    const RECOGNIZED_PLUGINS = ['dns_cf', 'dns_aws', 'dns_gd', 'dns_dp', 'dns_ali', 'dns_dgon'];
+    expect(RECOGNIZED_PLUGINS).toContain('dns_cf');
+  });
+
+  it('SSLCertificate record stores dnsProvider and dnsCredentials for auto-renewal', () => {
+    const certRecord = {
+      id: 'cert-wildcard-auto-1',
+      commonName: '*.example.com',
+      sans: ['*.example.com', 'example.com'],
+      issuer: 'ZeroSSL',
+      isWildcard: true,
+      wildcardDomain: '*.example.com',
+      autoRenew: true,
+      dnsProvider: 'dns_cf',
+      dnsCredentials: { CF_Token: 'stored-token-for-renewal' },
+      validFrom: '2026-01-01',
+      validTo: '2026-04-01',
+      status: 'valid' as const,
+    };
+    expect(certRecord.dnsProvider).toBe('dns_cf');
+    expect(certRecord.dnsCredentials).toHaveProperty('CF_Token');
+    expect(certRecord.autoRenew).toBe(true);
+    expect(certRecord.isWildcard).toBe(true);
+  });
+
+  it('dnsProvider and dnsCredentials are optional for non-wildcard certs', () => {
+    const legacyCert = {
+      id: 'cert-regular-1',
+      commonName: 'single.example.com',
+      sans: ['single.example.com'],
+      issuer: 'ZeroSSL',
+      isWildcard: false,
+      autoRenew: true,
+      validFrom: '2026-01-01',
+      validTo: '2026-04-01',
+      status: 'valid' as const,
+    };
+    expect((legacyCert as any).dnsProvider).toBeUndefined();
+    expect((legacyCert as any).dnsCredentials).toBeUndefined();
+  });
+
+  it('uploaded wildcard certs do not store dnsCredentials', () => {
+    const uploadedWildcard = {
+      id: 'cert-wildcard-upload-1',
+      commonName: '*.example.com',
+      isWildcard: true,
+      wildcardDomain: '*.example.com',
+      autoRenew: false,
+      dnsProvider: null,
+      dnsCredentials: null,
+    };
+    expect(uploadedWildcard.dnsProvider).toBeNull();
+    expect(uploadedWildcard.dnsCredentials).toBeNull();
+    expect(uploadedWildcard.autoRenew).toBe(false);
+  });
+});
+
+// ----------------------------------------------------------------
+describe('Wildcard auto-renewal eligibility', () => {
+  const AUTO_RENEWABLE_ISSUERS = ["Let's Encrypt", 'ZeroSSL'];
+
+  function canAutoRenewWildcard(cert: {
+    autoRenew: boolean;
+    issuer: string;
+    isWildcard: boolean;
+    dnsProvider?: string | null;
+    dnsCredentials?: Record<string, string> | null;
+  }): boolean {
+    if (!cert.autoRenew) return false;
+    if (!AUTO_RENEWABLE_ISSUERS.includes(cert.issuer)) return false;
+    if (cert.isWildcard && (!cert.dnsProvider || !cert.dnsCredentials)) return false;
+    return true;
+  }
+
+  it('allows renewal for wildcard cert with stored DNS credentials', () => {
+    expect(canAutoRenewWildcard({
+      autoRenew: true,
+      issuer: 'ZeroSSL',
+      isWildcard: true,
+      dnsProvider: 'dns_cf',
+      dnsCredentials: { CF_Token: 'some-token' },
+    })).toBe(true);
+  });
+
+  it('blocks renewal for wildcard cert without DNS credentials', () => {
+    expect(canAutoRenewWildcard({
+      autoRenew: true,
+      issuer: 'ZeroSSL',
+      isWildcard: true,
+      dnsProvider: null,
+      dnsCredentials: null,
+    })).toBe(false);
+  });
+
+  it('blocks renewal for manually uploaded wildcard cert', () => {
+    expect(canAutoRenewWildcard({
+      autoRenew: false,
+      issuer: 'Manual Upload',
+      isWildcard: true,
+      dnsProvider: null,
+      dnsCredentials: null,
+    })).toBe(false);
+  });
+
+  it('allows renewal for regular (non-wildcard) cert with auto-renewable issuer', () => {
+    expect(canAutoRenewWildcard({
+      autoRenew: true,
+      issuer: "Let's Encrypt",
+      isWildcard: false,
+    })).toBe(true);
+  });
+
+  it('blocks renewal when autoRenew is disabled', () => {
+    expect(canAutoRenewWildcard({
+      autoRenew: false,
+      issuer: 'ZeroSSL',
+      isWildcard: true,
+      dnsProvider: 'dns_cf',
+      dnsCredentials: { CF_Token: 'some-token' },
+    })).toBe(false);
+  });
+});

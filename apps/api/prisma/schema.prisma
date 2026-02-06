@@ -268,7 +268,7 @@ model SSLCertificate {
 
   // DNS credentials for wildcard auto-renewal (Cloudflare DNS-01 challenge)
   dnsProvider    String? // DNS provider plugin name (e.g., "dns_cf")
-  dnsCredentials Json?   // Encrypted DNS API credentials (e.g., { CF_Token: "...", CF_Zone_ID: "..." })
+  dnsCredentials Json?   // DNS API credentials for auto-renewal (e.g., { CF_Token: "...", CF_Account_ID: "..." })
 
   validFrom DateTime
   validTo   DateTime

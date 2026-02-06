@@ -863,7 +863,7 @@ export class SSLService {
         isWildcard: true,
         wildcardDomain: starPattern,
         dnsProvider: dnsProvider,
-        dnsCredentials: dnsCredentials || undefined,
+        dnsCredentials: dnsCredentials ?? undefined,
       };
       this.attachOptionalCertFields(record, parsedInfo);
 
@@ -1139,8 +1139,8 @@ export class SSLService {
       status: certStatus,
       isWildcard: true,
       wildcardDomain: wcPattern,
-      dnsProvider: dnsProvider || undefined,
-      dnsCredentials: dnsCredentials || undefined,
+      dnsProvider: dnsProvider ?? undefined,
+      dnsCredentials: dnsCredentials ?? undefined,
     };
     this.attachOptionalCertFields(dbRecord, parsedInfo);
 
