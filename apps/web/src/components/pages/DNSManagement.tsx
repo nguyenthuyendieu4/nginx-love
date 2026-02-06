@@ -950,21 +950,22 @@ function ProviderConfigDialog({
 }) {
   const { t } = useTranslation();
   const [localConfigs, setLocalConfigs] = useState<DnsProviderConfig[]>([]);
+  const [testedProvider, setTestedProvider] = useState<string | null>(null);
 
-  // Initialize local state when dialog opens
-  const handleOpenChange = (isOpen: boolean) => {
-    if (isOpen) {
+  const defaultConfigs: DnsProviderConfig[] = [
+    { provider: 'adguard', enabled: false, adguard: { baseUrl: '', username: '', password: '' } },
+    { provider: 'cloudflare', enabled: false, cloudflare: { apiToken: '', zoneId: '' } },
+  ];
+
+  // Initialize local state when dialog opens via open prop
+  useEffect(() => {
+    if (open) {
       setLocalConfigs(
-        configs.length > 0
-          ? [...configs]
-          : [
-              { provider: 'adguard', enabled: false, adguard: { baseUrl: '', username: '', password: '' } },
-              { provider: 'cloudflare', enabled: false, cloudflare: { apiToken: '', zoneId: '' } },
-            ]
+        configs.length > 0 ? [...configs] : defaultConfigs
       );
+      setTestedProvider(null);
     }
-    onOpenChange(isOpen);
-  };
+  }, [open]);
 
   const updateConfig = (index: number, updates: Partial<DnsProviderConfig>) => {
     const updated = [...localConfigs];
@@ -973,13 +974,18 @@ function ProviderConfigDialog({
     setLocalConfigs(updated);
   };
 
+  const handleTest = (cfg: DnsProviderConfig) => {
+    setTestedProvider(cfg.provider);
+    onTest(cfg);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t('dns.configureProviders', 'Configure DNS Providers')}</DialogTitle>
           <DialogDescription>
-            {t('dns.configureProvidersDesc', 'Set up AdGuardHome and Cloudflare integration')}
+            {t('dns.configureProvidersDesc', 'Set up AdGuardHome and Cloudflare integration to manage DNS records. Fill in the connection details and enable the providers you want to use.')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-4">
@@ -999,10 +1005,14 @@ function ProviderConfigDialog({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onTest(cfg)}
+                      onClick={() => handleTest(cfg)}
                       disabled={testResult.isPending}
                     >
-                      <TestTube className="h-4 w-4 mr-1" />
+                      {testResult.isPending && testedProvider === cfg.provider ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <TestTube className="h-4 w-4 mr-1" />
+                      )}
                       {t('dns.testConnection', 'Test')}
                     </Button>
                     <Switch
@@ -1011,6 +1021,33 @@ function ProviderConfigDialog({
                     />
                   </div>
                 </div>
+                <CardDescription>
+                  {cfg.provider === 'adguard'
+                    ? t('dns.adguardConfigDesc', 'Connect to your AdGuardHome instance to manage internal DNS rewrites')
+                    : t('dns.cloudflareConfigDesc', 'Connect to Cloudflare to manage public DNS records for your zones')}
+                </CardDescription>
+                {/* Test connection result feedback */}
+                {testedProvider === cfg.provider && !testResult.isPending && testResult.isSuccess && (
+                  <div className="flex items-center gap-2 mt-2 text-sm">
+                    {testResult.data?.connected ? (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        {t('dns.connectionSuccess', 'Connected successfully')}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                        {t('dns.connectionFailed', 'Connection failed')}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+                {testedProvider === cfg.provider && !testResult.isPending && testResult.isError && (
+                  <div className="flex items-center gap-2 mt-2 text-sm">
+                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                      {t('dns.connectionError', 'Connection error — check your credentials')}
+                    </Badge>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 {cfg.provider === 'adguard' && (
@@ -1024,6 +1061,9 @@ function ProviderConfigDialog({
                         }
                         placeholder="http://192.168.1.1:3000"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {t('dns.adguardBaseUrlHelp', 'The URL of your AdGuardHome web interface (e.g. http://192.168.1.1:3000)')}
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
@@ -1033,6 +1073,7 @@ function ProviderConfigDialog({
                           onChange={(e) =>
                             updateConfig(index, { adguard: { ...cfg.adguard!, username: e.target.value } })
                           }
+                          placeholder="admin"
                         />
                       </div>
                       <div className="grid gap-2">
@@ -1043,6 +1084,7 @@ function ProviderConfigDialog({
                           onChange={(e) =>
                             updateConfig(index, { adguard: { ...cfg.adguard!, password: e.target.value } })
                           }
+                          placeholder="••••••••"
                         />
                       </div>
                     </div>
@@ -1060,6 +1102,9 @@ function ProviderConfigDialog({
                         }
                         placeholder="Your Cloudflare API token"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {t('dns.cloudflareTokenHelp', 'Create an API token at dash.cloudflare.com → My Profile → API Tokens with DNS edit permissions')}
+                      </p>
                     </div>
                     <div className="grid gap-2">
                       <Label>Zone ID</Label>
@@ -1068,8 +1113,11 @@ function ProviderConfigDialog({
                         onChange={(e) =>
                           updateConfig(index, { cloudflare: { ...cfg.cloudflare!, zoneId: e.target.value } })
                         }
-                        placeholder="Your Cloudflare Zone ID"
+                        placeholder="e.g. 023e105f4ecef8ad9ca31a8372d0c353"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        {t('dns.cloudflareZoneHelp', 'Found on your domain overview page in Cloudflare dashboard → API section')}
+                      </p>
                     </div>
                   </>
                 )}
