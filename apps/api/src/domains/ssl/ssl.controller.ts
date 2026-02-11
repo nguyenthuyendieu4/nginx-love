@@ -57,7 +57,7 @@ export const getSSLCertificates = async (req: AuthRequest, res: Response): Promi
  */
 export const getSSLCertificate = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const certificate = await sslService.getCertificateById(id);
 
@@ -218,7 +218,7 @@ export const updateSSLCertificate = async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const dto: UpdateSSLDto = {
       certificate: req.body.certificate,
       privateKey: req.body.privateKey,
@@ -267,7 +267,7 @@ export const updateSSLCertificate = async (req: AuthRequest, res: Response): Pro
  */
 export const deleteSSLCertificate = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     try {
       await sslService.deleteCertificate(
@@ -308,7 +308,7 @@ export const deleteSSLCertificate = async (req: AuthRequest, res: Response): Pro
  */
 export const renewSSLCertificate = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     try {
       const updatedCert = await sslService.renewCertificate(
