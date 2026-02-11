@@ -223,7 +223,7 @@ export const createCloudflareRecord = async (req: AuthRequest, res: Response): P
  */
 export const updateCloudflareRecord = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const { type, name, content, ttl, proxied, comment, ...configFields } = req.body;
     const config = getCloudflareConfig(configFields);
 
@@ -255,7 +255,7 @@ export const updateCloudflareRecord = async (req: AuthRequest, res: Response): P
  */
 export const deleteCloudflareRecord = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
     const config = getCloudflareConfig(req.body);
 
     await cloudflareService.deleteRecord(config, id);
