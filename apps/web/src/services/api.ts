@@ -1,8 +1,8 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { tokenStorage } from '@/lib/auth-storage';
 
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// API Base URL - defaults to relative /api to leverage nginx proxy (avoids CORS issues)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({

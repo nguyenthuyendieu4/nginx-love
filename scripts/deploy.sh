@@ -320,12 +320,12 @@ cd "${FRONTEND_DIR}"
 # Create frontend .env from .env.example (always create fresh)
 log "Creating fresh frontend .env from .env.example..."
 cat > ".env" <<EOF
-VITE_API_URL=http://${PUBLIC_IP}:3001/api
+VITE_API_URL=/api
 EOF
 
 log "✅ Created fresh frontend .env"
 
-log "✓ Frontend .env configured with API: http://${PUBLIC_IP}:3001/api"
+log "✓ Frontend .env configured with API: /api (nginx proxy mode)"
 
 # Clean previous build
 if [ -d "dist" ]; then
@@ -398,33 +398,70 @@ StandardError=append:/var/log/nginx-love-backend-error.log
 WantedBy=multi-user.target
 EOF
 
-# Frontend service (if using preview mode)
-cat > /etc/systemd/system/nginx-love-frontend.service <<EOF
-[Unit]
-Description=Nginx Love UI Frontend
-After=network.target
+# Frontend service - served by nginx panel (no separate systemd service needed)
+# Create nginx panel configuration for serving frontend + API proxy
+log "Creating nginx panel configuration..."
+PANEL_CONF="/etc/nginx/sites-available/nginx-love-panel.conf"
+cat > "${PANEL_CONF}" <<EOF
+server {
+    listen 8080;
+    server_name _;
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=${FRONTEND_DIR}
-Environment=NODE_ENV=production
-ExecStart=$(which pnpm) preview --host 0.0.0.0 --port 8080
-Restart=always
-RestartSec=10
-StandardOutput=append:/var/log/nginx-love-frontend.log
-StandardError=append:/var/log/nginx-love-frontend-error.log
+    root ${FRONTEND_DIR}/dist;
+    index index.html;
 
-[Install]
-WantedBy=multi-user.target
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Proxy API requests to backend - eliminates CORS issues
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    # Frontend SPA routing - serve static files, fallback to index.html
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files \$uri =404;
+    }
+}
 EOF
+
+# Enable panel site
+mkdir -p /etc/nginx/sites-enabled
+ln -sf "${PANEL_CONF}" /etc/nginx/sites-enabled/nginx-love-panel.conf
+log "✓ Nginx panel configuration created (port 8080: frontend + API proxy)"
 
 # Reload systemd
 systemctl daemon-reload
 
 # Enable services
 systemctl enable nginx-love-backend.service >> "$LOG_FILE" 2>&1
-systemctl enable nginx-love-frontend.service >> "$LOG_FILE" 2>&1
+
+# Disable and remove old frontend service if exists (now served by nginx panel)
+if systemctl list-unit-files | grep -q nginx-love-frontend.service; then
+    systemctl stop nginx-love-frontend.service 2>/dev/null || true
+    systemctl disable nginx-love-frontend.service 2>/dev/null || true
+    rm -f /etc/systemd/system/nginx-love-frontend.service
+    log "✓ Old frontend systemd service removed (now served by nginx)"
+fi
 
 log "✓ Systemd services configured"
 
@@ -439,13 +476,7 @@ if ! systemctl is-active --quiet nginx-love-backend.service; then
 fi
 log "✓ Backend service started"
 
-# Start frontend
-systemctl restart nginx-love-frontend.service || error "Failed to start frontend service"
-sleep 2
-if ! systemctl is-active --quiet nginx-love-frontend.service; then
-    error "Frontend service failed to start. Check logs: journalctl -u nginx-love-frontend.service"
-fi
-log "✓ Frontend service started"
+# Frontend is now served by nginx panel - no separate service needed
 
 # Ensure nginx is running
 if ! systemctl is-active --quiet nginx; then
@@ -515,8 +546,8 @@ log ""
 log "📋 Service Status:"
 log "  • PostgreSQL: Docker container '${DB_CONTAINER_NAME}'"
 log "  • Backend API: http://${PUBLIC_IP}:3001"
-log "  • Frontend UI: http://${PUBLIC_IP}:8080"
-log "  • Nginx: Port 80/443"
+log "  • Frontend UI: http://${PUBLIC_IP}:8080 (nginx panel with API proxy)"
+log "  • Nginx: Port 80/443/8080"
 log ""
 log "🔐 Database Credentials:"
 log "  • Host: localhost"
@@ -533,13 +564,13 @@ log ""
 log "📝 Manage Services:"
 log "  PostgreSQL: docker start|stop|restart ${DB_CONTAINER_NAME}"
 log "  Backend:    systemctl {start|stop|restart|status} nginx-love-backend"
-log "  Frontend:   systemctl {start|stop|restart|status} nginx-love-frontend"
+log "  Frontend:   Served by nginx panel (port 8080)"
 log "  Nginx:      systemctl {start|stop|restart|status} nginx"
 log ""
 log "📊 View Logs:"
 log "  PostgreSQL: docker logs -f ${DB_CONTAINER_NAME}"
 log "  Backend:    tail -f /var/log/nginx-love-backend.log"
-log "  Frontend:   tail -f /var/log/nginx-love-frontend.log"
+log "  Panel:      tail -f /var/log/nginx/error.log"
 log "  Nginx:      tail -f /var/log/nginx/error.log"
 log ""
 log "🔐 Default Credentials:"
@@ -555,7 +586,7 @@ cat > /root/.nginx-love-credentials <<EOF
 # Generated: $(date)
 
 ## Public Access
-Frontend: http://${PUBLIC_IP}:8080
+Frontend: http://${PUBLIC_IP}:8080  (nginx panel with API proxy at /api)
 Backend:  http://${PUBLIC_IP}:3001
 
 ## Database (Docker)
